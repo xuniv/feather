@@ -28,7 +28,12 @@ final class InstallationHTTPServer {
     }
 
     func shutdown() {
-        for application in applications.reversed() { application.shutdown() }
+        for application in applications.reversed() {
+            // These listeners are started directly, outside Application.run().
+            // Application.shutdown() alone does not stop their HTTPServer.
+            application.server.shutdown()
+            application.shutdown()
+        }
         applications.removeAll()
     }
 

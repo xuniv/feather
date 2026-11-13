@@ -45,6 +45,13 @@ func respond(_ request: Request, http: Bool) throws -> Response {
 }
 
 try server.start(port: port, tls: tls, localOnly: true) { try respond($0, http: false) }
+let conflicting = InstallationHTTPServer()
+do {
+    try conflicting.start(port: port, tls: tls, localOnly: true) { try respond($0, http: false) }
+    fatalError("Conflicting listener unexpectedly started")
+} catch {
+    // A failed bind must clean up without closing the working installer.
+}
 for (host, address) in [("feather.localhost", "127.0.0.1"), ("feather.localhost", "[::1]"), ("localhost", "127.0.0.1"), ("localhost", "[::1]"), ("127.0.0.1", "127.0.0.1")] {
     let resolve = "\(host):\(port):\(address)"
     let manifestURL = InstallationTransport.endpoint(host: host, port: port, path: "/test.plist", http: false)

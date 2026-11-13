@@ -11,6 +11,12 @@ final class LocalTLSAuthority {
     private var setupServer: Application?
     private var setupTimeout: Timer?
 
+    private func stopSetupServer() {
+        setupServer?.server.shutdown()
+        setupServer?.shutdown()
+        setupServer = nil
+    }
+
     private var directory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("LocalInstallationTLS", isDirectory: true)
@@ -90,8 +96,7 @@ final class LocalTLSAuthority {
     func openSetup() throws {
         try prepare()
         setupTimeout?.invalidate()
-        setupServer?.shutdown()
-        setupServer = nil
+        stopSetupServer()
         let authority = try Data(contentsOf: authorityURL)
         let payloadID = "app.feather.local-installation-ca"
         let profile: [String: Any] = [
@@ -115,11 +120,14 @@ final class LocalTLSAuthority {
         server.get(PathComponent(stringLiteral: token), "ca.mobileconfig") { _ in
             Response(status: .ok, headers: ["Content-Type": "application/x-apple-aspen-config"], body: .init(data: data))
         }
-        do { try server.server.start() } catch { server.shutdown(); throw error }
+        do { try server.server.start() } catch {
+            server.server.shutdown()
+            server.shutdown()
+            throw error
+        }
         setupServer = server
         setupTimeout = Timer.scheduledTimer(withTimeInterval: 180, repeats: false) { [weak self] _ in
-            self?.setupServer?.shutdown()
-            self?.setupServer = nil
+            self?.stopSetupServer()
         }
         UIApplication.shared.open(URL(string: "http://127.0.0.1:\(port)/\(token)/ca.mobileconfig")!)
     }
