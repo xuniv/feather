@@ -2,6 +2,7 @@
 """Synthetic, offline integration checks for per-bundle signing and resource seals."""
 import base64
 import hashlib
+import importlib.util
 import os
 from pathlib import Path
 import plistlib
@@ -116,7 +117,9 @@ def run(driver):
             bundle.mkdir(parents=True)
             (bundle / 'Executable').write_bytes(template)
             (bundle / 'Executable').chmod(0o755)
-            (bundle / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': identifier, 'CFBundleExecutable': 'Executable', 'CFBundleVersion': '1', 'CFBundleName': name}))
+            (bundle / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': identifier, 'CFBundleExecutable': 'Executable',
+                'CFBundleVersion': '1', 'CFBundleShortVersionString': '2.9.1', 'CFBundleName': name,
+                'CFBundleSupportedPlatforms': ['iPhoneOS']}))
             (bundle / 'resource.txt').write_text(name)
             entitlements = {'application-identifier': 'LEGACY1234.' + identifier, 'com.apple.developer.team-identifier': 'NEWTEAM123', 'keychain-access-groups': ['LEGACY1234.' + identifier]}
             (root / (name + '.plist')).write_bytes(plistlib.dumps(entitlements))
@@ -135,6 +138,16 @@ def run(driver):
                 # Synthetic certificates cannot meet the production Apple anchor;
                 # verify ad-hoc structure using the system verifier instead.
                 command('/usr/bin/codesign', '--verify', '--strict', '--verbose=2', str(bundle))
+        if sys.platform == 'darwin':
+            # Exercise actual signature stripping on the compiler-built app,
+            # extension and nested app, while preserving the input fixture.
+            script = Path(__file__).resolve().parents[2] / 'scripts/unsigned_ipa.py'
+            spec = importlib.util.spec_from_file_location('unsigned_ipa', script)
+            packaging = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(packaging)
+            result = packaging.prepare(root / 'Test.app', root / 'unsigned.ipa', '2.9.1')
+            assert result['unsigned_macho_files'] == 3
+            assert 5 in slots(root / 'Test.app/Executable')[1]
         # A valid p12 must not sign using a profile which omits its certificate.
         profile['DeveloperCertificates'] = []
         (root / 'unauthorized.plist').write_bytes(plistlib.dumps(profile))
