@@ -2,7 +2,7 @@ name: Validate Signing
 
 on:
   push:
-    branches: [fix/local-install-and-bundle-signing]
+    branches: [fix/local-install-and-bundle-signing, fix/local-install-handoff]
   pull_request:
   workflow_dispatch:
 
@@ -27,6 +27,12 @@ jobs:
           "$RUNNER_TEMP/signing-tests"
       - name: Native signing core and local TLS
         run: bash Tests/Signing/native.sh
+      - name: Installation handoff and hosted manifest encoding
+        run: |
+          swiftc Feather/Backend/Server/InstallationTransport.swift Tests/Installation/main.swift -o "$RUNNER_TEMP/installation-tests"
+          "$RUNNER_TEMP/installation-tests"
+      - name: Local installation listeners
+        run: bash Tests/Installation/integration.sh
       - name: Unsigned IPA validation
         run: python3 Tests/Signing/test_unsigned_ipa.py
       - name: Swift package adapter

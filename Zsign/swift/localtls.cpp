@@ -57,7 +57,7 @@ bool GenerateLocalTLSIdentity(LocalTLSIdentity& output) {
     auto serverKey = key();
     if (!authorityKey || !serverKey) return false;
     auto authority = certificate(authorityKey.get(), "Feather Local Installation CA", 3650);
-    auto server = certificate(serverKey.get(), "localhost", 397);
+    auto server = certificate(serverKey.get(), "feather.localhost", 397);
     if (!authority || !server ||
         X509_set_issuer_name(authority.get(), X509_get_subject_name(authority.get())) != 1 ||
         !extension(authority.get(), authority.get(), NID_basic_constraints, "critical,CA:TRUE,pathlen:0") ||
@@ -68,7 +68,7 @@ bool GenerateLocalTLSIdentity(LocalTLSIdentity& output) {
         !extension(server.get(), authority.get(), NID_basic_constraints, "critical,CA:FALSE") ||
         !extension(server.get(), authority.get(), NID_key_usage, "critical,digitalSignature") ||
         !extension(server.get(), authority.get(), NID_ext_key_usage, "serverAuth") ||
-        !extension(server.get(), authority.get(), NID_subject_alt_name, "DNS:localhost,IP:127.0.0.1") ||
+        !extension(server.get(), authority.get(), NID_subject_alt_name, "DNS:feather.localhost,DNS:localhost,IP:127.0.0.1,IP:::1") ||
         !extension(server.get(), authority.get(), NID_subject_key_identifier, "hash") ||
         !extension(server.get(), authority.get(), NID_authority_key_identifier, "keyid:always") ||
         X509_sign(server.get(), authorityKey.get(), EVP_sha256()) <= 0) return false;
@@ -86,4 +86,14 @@ bool GenerateLocalTLSIdentity(LocalTLSIdentity& output) {
     output.certificatePEM = bytes(certBIO.get());
     output.privateKeyPEM = bytes(keyBIO.get());
     return !output.certificatePEM.empty() && !output.privateKeyPEM.empty();
+}
+
+bool LocalTLSCertificateSupportsHost(const std::string& certificatePEM, const std::string& host) {
+    if (host.empty() || host.find('\0') != std::string::npos) return false;
+    Bio input(BIO_new_mem_buf(certificatePEM.data(), (int)certificatePEM.size()), BIO_free);
+    if (!input) return false;
+    Cert certificate(PEM_read_bio_X509(input.get(), nullptr, nullptr, nullptr), X509_free);
+    if (!certificate) return false;
+    return X509_check_ip_asc(certificate.get(), host.c_str(), 0) == 1 ||
+        X509_check_host(certificate.get(), host.c_str(), host.size(), X509_CHECK_FLAG_NEVER_CHECK_SUBJECT, nullptr) == 1;
 }

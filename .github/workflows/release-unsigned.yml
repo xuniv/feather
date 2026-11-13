@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag matching Feather.xcconfig (for example v2.9.1)
+        description: Release tag matching Feather.xcconfig (for example v2.9.2)
         required: true
         type: string
 
@@ -46,6 +46,8 @@ jobs:
           swiftc Feather/Utilities/Signing/EntitlementPolicy.swift Feather/Utilities/Signing/MachOCompatibility.swift Tests/Signing/main.swift -o "$RUNNER_TEMP/signing-tests"
           "$RUNNER_TEMP/signing-tests"
           bash Tests/Signing/native.sh
+          swiftc Feather/Backend/Server/InstallationTransport.swift Tests/Installation/main.swift -o "$RUNNER_TEMP/installation-tests"
+          "$RUNNER_TEMP/installation-tests"
           python3 Tests/Signing/test_unsigned_ipa.py
       - name: Build without signing credentials
         run: |

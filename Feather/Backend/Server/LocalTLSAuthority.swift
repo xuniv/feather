@@ -42,10 +42,29 @@ final class LocalTLSAuthority {
         }
     }
 
-    func requireTrust() throws {
+    func hostCandidates(preferred: String) throws -> [String] {
         identityLock.lock()
         defer { identityLock.unlock() }
         try prepare()
+        let pem = try String(contentsOf: certificateURL, encoding: .utf8)
+        // Reuse the already trusted 2.9.1 CA: its leaf covers localhost, but not
+        // feather.localhost. Never silently replace a user's trusted identity.
+        let hosts = InstallationTransport.compatibleLocalHosts(preferred: preferred) {
+            LocalTLSCertificateMatchesHost(pem, $0)
+        }
+        guard !hosts.isEmpty else {
+            throw InstallationTransport.Failure(message: "The local certificate has no supported localhost identity. Reset Local CA, then install and trust the replacement profile.")
+        }
+        return hosts
+    }
+
+    func requireTrust(host requestedHost: String? = nil) throws {
+        identityLock.lock()
+        defer { identityLock.unlock() }
+        try prepare()
+        let preferred = UserDefaults.standard.string(forKey: "Feather.localInstallHost") ?? InstallationTransport.preferredLocalHost
+        let host: String
+        if let requestedHost { host = requestedHost } else { host = try hostCandidates(preferred: preferred)[0] }
         // Evaluate using the system trust store; never install a custom trust anchor here.
         let pem = try String(contentsOf: certificateURL, encoding: .utf8)
         let certificates = pem.components(separatedBy: "-----BEGIN CERTIFICATE-----").dropFirst().compactMap { block -> SecCertificate? in
@@ -55,9 +74,15 @@ final class LocalTLSAuthority {
         }
         var trust: SecTrust?
         guard !certificates.isEmpty,
-              SecTrustCreateWithCertificates(certificates as CFArray, SecPolicyCreateSSL(true, "127.0.0.1" as CFString), &trust) == errSecSuccess,
-              let trust, SecTrustEvaluateWithError(trust, nil) else {
-            throw EntitlementPolicy.Failure(message: "Local HTTPS is not trusted or its certificate has expired. In Settings → Installation, set up the Local CA. Install the profile, then enable it in iOS Settings → General → About → Certificate Trust Settings. If already enabled, use Reset Local CA and repeat setup.")
+              SecTrustCreateWithCertificates(certificates as CFArray, SecPolicyCreateSSL(true, host as CFString), &trust) == errSecSuccess,
+              let trust else {
+            throw InstallationTransport.Failure(message: "Could not read the local HTTPS certificate.")
+        }
+        SecTrustSetNetworkFetchAllowed(trust, false)
+        var trustError: CFError?
+        guard SecTrustEvaluateWithError(trust, &trustError) else {
+            let reason = trustError.map { CFErrorCopyDescription($0) as String } ?? "Certificate trust evaluation failed."
+            throw InstallationTransport.Failure(message: "Local HTTPS trust check failed for \(host): \(reason) Install the CA profile belonging to this Feather installation and enable full trust in iOS Settings → General → About → Certificate Trust Settings.")
         }
     }
 

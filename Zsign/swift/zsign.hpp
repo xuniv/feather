@@ -16,6 +16,7 @@ extern "C" {
 #endif
 
 NSDictionary<NSString *, NSData *> *CreateLocalTLSIdentity();
+bool LocalTLSCertificateMatchesHost(NSString *certificatePEM, NSString *host);
 NSData *ReadProvisioningProfile(NSString *path);
 
 bool CheckIfSigned(NSString *filePath);

@@ -15,76 +15,26 @@ import SystemConfiguration.CaptiveNetwork
 
 // MARK: - Class extension: TLS/Setup
 extension ServerInstaller {
-	// MARK: Setup
-	static let env: Environment = {
-		var env = try! Environment.detect()
-		try! LoggingSystem.bootstrap(from: &env)
-		return env
-	}()
-	
-	func setupApp(port: Int) throws -> Application {
-		let app = Application(Self.env)
-		app.threadPool = .init(numberOfThreads: 1)
-		
-		if getServerMethod() != 1 {
-			do {
-				guard let configuration = try tls() else {
-					throw EntitlementPolicy.Failure(message: "Missing HTTPS certificate or private key. Update SSL Certificates in Installation settings.")
-				}
-				app.http.server.configuration.tlsConfiguration = configuration
-			} catch {
-				app.shutdown()
-				throw error
-			}
-		}
-		
-		app.http.server.configuration.hostname = sni()
-		app.http.server.configuration.tcpNoDelay = true
-		app.http.server.configuration.address = .hostname(getServerMethod() == 0 ? "127.0.0.1" : "0.0.0.0", port: port)
-		app.http.server.configuration.port = port
-		app.routes.defaultMaxBodySize = "128mb"
-		app.routes.caseInsensitive = false
-		
-		return app
-	}
-	
-	// MARK: Files/IP
-	func sni() -> String {
-		let localhost = "127.0.0.1"
-		
-		if getServerMethod() == 0 { return localhost }
-		if getServerMethod() == 1 {
-			return !self.getIPFix()
-				? (Self.getLocalAddress() ?? localhost)
-				: localhost
-		} else {
-			return readCommonName() ?? localhost
-		}
-	}
-	
-	func tls() throws -> TLSConfiguration? {
+	func tls() throws -> TLSConfiguration {
 		let crt: URL
 		let pem: URL
-		if getServerMethod() == 0 {
-			try LocalTLSAuthority.shared.requireTrust()
+		if method.usesLocalCA {
+			try LocalTLSAuthority.shared.requireTrust(host: host)
 			crt = LocalTLSAuthority.shared.certificateURL
 			pem = LocalTLSAuthority.shared.keyURL
 		} else {
-			guard let certificate = Self.getUrl("server", ext: "crt"), let key = Self.getUrl("server", ext: "pem") else { return nil }
+			guard let certificate = Self.getUrl("server", ext: "crt"), let key = Self.getUrl("server", ext: "pem") else {
+				throw InstallationTransport.Failure(message: "Missing HTTPS certificate or private key. Update SSL Certificates in Installation settings.")
+			}
 			crt = certificate
 			pem = key
 		}
-		
 		return try TLSConfiguration.makeServerConfiguration(
-			certificateChain: NIOSSLCertificate.fromPEMFile(crt.path).map {
-				NIOSSLCertificateSource.certificate($0)
-			},
-			privateKey: .privateKey(
-				try NIOSSLPrivateKey(file: pem.path, format: .pem)
-			)
+			certificateChain: NIOSSLCertificate.fromPEMFile(crt.path).map { .certificate($0) },
+			privateKey: .privateKey(NIOSSLPrivateKey(file: pem.path, format: .pem))
 		)
 	}
-	
+
 	func readCommonName() -> String? {
 		guard let url = Self.getUrl("commonName", ext: "txt") else {
 			return nil
@@ -121,7 +71,11 @@ extension ServerInstaller {
 			var ptr = ifaddr
 			while ptr != nil {
 				let interface = ptr!.pointee
-				let addrFamily = interface.ifa_addr.pointee.sa_family
+				guard let socketAddress = interface.ifa_addr else {
+						ptr = interface.ifa_next
+						continue
+					}
+					let addrFamily = socketAddress.pointee.sa_family
 				
 				if addrFamily == UInt8(AF_INET) {
 					
@@ -130,9 +84,10 @@ extension ServerInstaller {
 						
 						var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
 						if getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
-						               &hostname, socklen_t(hostname.count),
-						               nil, socklen_t(0), NI_NUMERICHOST) == 0 {
+									   &hostname, socklen_t(hostname.count),
+									   nil, socklen_t(0), NI_NUMERICHOST) == 0 {
 							address = String(cString: hostname)
+							if name == "en0" { freeifaddrs(ifaddr); return address }
 						}
 						
 					}

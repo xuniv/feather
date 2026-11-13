@@ -37,6 +37,10 @@ NSDictionary<NSString *, NSData *> *CreateLocalTLSIdentity() {
 		@"authority": [NSData dataWithBytes:identity.authorityDER.data() length:identity.authorityDER.size()]};
 }
 
+bool LocalTLSCertificateMatchesHost(NSString *certificatePEM, NSString *host) {
+    return LocalTLSCertificateSupportsHost([certificatePEM UTF8String], [host UTF8String]);
+}
+
 NSData *ReadProvisioningProfile(NSString *path) {
 	string input, output;
 	if (!ZFile::ReadFile([path UTF8String], input) || !ZSignAsset::GetCMSContent(input, output)) return nil;

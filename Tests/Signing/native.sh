@@ -13,6 +13,11 @@ c++ -std=c++17 "${openssl_flags[@]}" -IZsign/swift Tests/Signing/localtls.cpp Zs
 openssl x509 -inform DER -in "$task_tmp/authority.der" -out "$task_tmp/authority.crt"
 openssl verify -CAfile "$task_tmp/authority.crt" -verify_ip 127.0.0.1 -purpose sslserver "$task_tmp/server.crt"
 openssl verify -CAfile "$task_tmp/authority.crt" -verify_hostname localhost -purpose sslserver "$task_tmp/server.crt"
+openssl verify -CAfile "$task_tmp/authority.crt" -verify_hostname feather.localhost -purpose sslserver "$task_tmp/server.crt"
+openssl verify -CAfile "$task_tmp/authority.crt" -verify_ip ::1 -purpose sslserver "$task_tmp/server.crt"
+openssl req -new -x509 -key "$task_tmp/server.pem" -subj /CN=localhost \
+  -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' -out "$task_tmp/legacy.crt"
+"$task_tmp/localtls" "$task_tmp" "$task_tmp/legacy.crt"
 if openssl verify -CAfile "$task_tmp/authority.crt" -verify_hostname example.org "$task_tmp/server.crt" >/dev/null 2>&1; then
   echo 'Loopback certificate unexpectedly covers an external host' >&2
   exit 1

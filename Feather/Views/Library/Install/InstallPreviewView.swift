@@ -16,7 +16,6 @@ struct InstallPreviewView: View {
 
 	@AppStorage("Feather.useShareSheetForArchiving") private var _useShareSheet: Bool = false
 	@AppStorage("Feather.installationMethod") private var _installationMethod: Int = 0
-	@AppStorage("Feather.serverMethod") private var _serverMethod: Int = 0
 	@State private var _isWebviewPresenting = false
 	@State private var progressTask: Task<Void, Never>?
 	
@@ -31,7 +30,7 @@ struct InstallPreviewView: View {
 		self.isSharing = isSharing
 		let viewModel = InstallerStatusViewModel(isIdevice: UserDefaults.standard.integer(forKey: "Feather.installationMethod") == 1)
 		self._viewModel = StateObject(wrappedValue: viewModel)
-		self._installer = StateObject(wrappedValue: try! ServerInstaller(app: app, viewModel: viewModel))
+		self._installer = StateObject(wrappedValue: ServerInstaller(app: app, viewModel: viewModel))
 	}
 	
 	// MARK: Body
@@ -59,17 +58,12 @@ struct InstallPreviewView: View {
 		.onReceive(viewModel.$status) { newStatus in
 			if _installationMethod == 0 {
 				if case .ready = newStatus {
-					if _serverMethod != 1 {
-						UIApplication.shared.open(URL(string: installer.iTunesLink)!)
-					} else if _serverMethod == 1 {
-						_isWebviewPresenting = true
-					}
+					_isWebviewPresenting = true
 				}
-				
-				if case .sendingPayload = newStatus, _serverMethod == 1 {
+				if case .sendingPayload = newStatus {
 					_isWebviewPresenting = false
 				}
-				
+
 				if case .installing = newStatus {
 					if progressTask == nil {
 						progressTask = startInstallProgressPolling(
@@ -121,6 +115,12 @@ struct InstallPreviewView: View {
 	@ViewBuilder
 	private func _button() -> some View {
 		ZStack {
+			if case .ready = viewModel.status, !isSharing, _installationMethod == 0 {
+				Button { _isWebviewPresenting = true } label: {
+					NBButton("Install", systemImage: "arrow.down.app", style: .text)
+				}
+				.padding()
+			}
 			if viewModel.isCompleted {
 				Button {
 					UIApplication.openApp(with: app.identifier ?? "")
@@ -153,10 +153,8 @@ struct InstallPreviewView: View {
 				
 				if await !isSharing {
 					if await _installationMethod == 0 {
-						await MainActor.run {
-							installer.packageUrl = packageUrl
-							viewModel.status = .ready
-						}
+						try await installer.start(package: packageUrl)
+						await MainActor.run { viewModel.status = .ready }
 						
 						if case .installing = await viewModel.status {
 							let task = await startInstallProgressPolling(
@@ -192,9 +190,10 @@ struct InstallPreviewView: View {
 				await progressTask?.cancel()
 				
 				await MainActor.run {
+					viewModel.status = .broken(error)
 					UIAlertController.showAlertWithOk(
 						title: .localized("Install"),
-						message: String(describing: error),
+						message: error.localizedDescription,
 						action: {
 							HeartbeatManager.shared.start(true)
 							dismiss()

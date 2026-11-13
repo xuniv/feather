@@ -6,18 +6,18 @@ To start off, we need a validly signed IPA. We can achieve this with Zsign, usin
 
 #### Install (Server)
 
-- Use a locally hosted server for hosting the IPA files used for installation, including other assets such as icons, etc. 
-  - On iOS 18, we need a few entitlements: `Associated Domains`, `Custom Network Protocol`, `MDM Managed Associated Domains`, `Network Extensions`
-- Make sure to include valid https SSL certificates as the next URL requires a valid HTTPS connection, for us we use [*.backloop.dev](https://backloop.dev/).
-- We then use `itms-services://?action=download-manifest&url=<PLIST_URL>` to attempt to initiate an install, by using `UIApplication.open`.
+Feather packages the signed app and starts a local server only for server installation. Export and pairing installation do not start it or require a CA. Before reporting Ready, Feather checks the actual local connection with system TLS trust and, for hosted modes, fetches and validates the HTTPS manifest response.
 
-However, due to the changes with iOS 18 with entitlements we will need to provide an alternative way of installing. We have two options here, a way to install locally fully using the local server (the one I have just shown) or use an external HTTPS server that serves as our middle man for our `PLIST_URL`, while having the files still local to us. Lets show the latter.
+Installation opens a local page in Safari with an `itms-services://?action=download-manifest&url=...` link. The page tries automatic handoff and provides an Install link if a user gesture is required. This route is used in all server modes, including Local CA, to accommodate iOS restrictions on launching installation from the app. The Safari sheet closes when IPA transfer starts.
 
-- This time, lets not include https SSL certificates, rather just have a plain insecure local server.
-- Instead of a locally hosting our `PLIST_URL`, we use [plistserver](https://github.com/nekohaxx/plistserver) to host a server online specifically for retrieving it. This still requires a valid HTTPS connection.
-- Now, to even initiate the install (due to lack of entitlements from the former) we need to trick iOS into opening the `itms-services://` URL, we can do this by summoning a Safari webview to a locally hosted HTML page with a script to forcefully redirect us to that itms-services URL.
+- **Local CA (Offline):** The manifest, IPA and installation page use HTTPS on device loopback. Install the generated CA profile and enable full trust in iOS Settings once. New identities cover `feather.localhost`, `localhost`, `127.0.0.1` and `::1`. IPv4 and IPv6 loopback listeners support localhost resolution without exposing HTTPS to the LAN. If a preferred hostname does not resolve, a covered localhost/IP address is tried.
+- **Hosted Plist (HTTP):** Restores the former Semi Local route. The HTTPS [plistserver](https://github.com/nekohaxx/plistserver) service generates the manifest; the IPA and Safari page use the device's HTTP server. A Local CA is not needed. The localhost-only switch selects loopback instead of the device's LAN address; failed LAN preflight falls back to loopback.
+- **Public TLS:** Uses downloaded public TLS credentials and a loopback-resolving hostname. Expired credentials must be updated in Installation settings.
+- **Hosted Plist + Local CA:** Uses the hosted HTTPS manifest with a locally trusted HTTPS IPA endpoint.
 
-Since itms-services initiates the install automatically, we don't need to do anything extra after the process. Though, what we do is monitor the streaming progress of the IPA being sent.
+Hosted modes send the service the app's name, bundle ID, build version and local IPA URL; IPA contents, developer certificates and local private keys remain on the device. The service URL is configurable and must use HTTPS. Query values are URL-encoded once at each nesting level and XML-escaped for the upstream plistserver API. The returned manifest must identify the selected app, build and exact local payload URL before installation can continue.
+
+An existing trusted 2.9.1 CA is preserved: its certificate already covers `localhost` and `127.0.0.1`, so these work without replacing the profile. Adding `feather.localhost` to that certificate requires explicitly choosing Reset Local CA and installing/trusting the replacement profile. The CA private key was discarded when the original identity was generated and is not retained by Feather.
 
 #### Install (Pairing)
 - Establish a heartbeat with a TCP provider (the app will need this for later).
