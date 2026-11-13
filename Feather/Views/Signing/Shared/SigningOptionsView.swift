@@ -28,6 +28,11 @@ struct SigningOptionsView: View {
 			}
 		}
 		
+		Section {
+			NavigationLink { SigningCompatibilityView(options: $options) } label: {
+				Label(.localized("Compatibility & Patches"), systemImage: "wrench.and.screwdriver")
+			}
+		}
 		NBSection(.localized("General")) {
 			Self.picker(
 				.localized("Appearance"),
@@ -163,23 +168,17 @@ struct SigningOptionsView: View {
 		
 		Section {
 			_toggle(
-				.localized("Merge Entitlements"),
+				.localized("Preserve Bundle Entitlements"),
 				systemImage: "doc.plaintext",
-				isOn: $options.mergeEntitlements,
-				temporaryValue: temporaryOptions?.mergeEntitlements
-			).disabled(options.appEntitlementsFile != nil)
+				isOn: Binding(get: { options.preserveBundleEntitlements ?? true }, set: { options.preserveBundleEntitlements = $0 }),
+				temporaryValue: temporaryOptions?.preserveBundleEntitlements ?? true
+			)
 		} footer: {
-			Text(.localized("This option merges entitlements with the embedded entitlements from the app you're signing."))
+			Text(.localized("Preserves permitted entitlements separately for the app and each extension. Identity values are always normalized against the matching provisioning profile."))
 		}
 		
 		NBSection(.localized("Experiments")) {			
-			_toggle(
-				.localized("Replace Substrate with ElleKit"),
-				systemImage: "pencil",
-				isOn: $options.experiment_replaceSubstrateWithEllekit,
-				temporaryValue: temporaryOptions?.experiment_replaceSubstrateWithEllekit
-			)
-			
+
 			_toggle(
 				.localized("Disable Liquid Glass"),
 				systemImage: "18.circle",

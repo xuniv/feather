@@ -50,7 +50,8 @@ extension ServerView {
 struct ServerView: View {
 	@AppStorage("Feather.ipFix") private var _ipFix: Bool = false
 	@AppStorage("Feather.serverMethod") private var _serverMethod: Int = 0
-	private let _serverMethods: [String] = [.localized("Fully Local"), .localized("Semi Local")]
+	private let _serverMethods: [String] = [.localized("Local CA (Offline)"), .localized("Semi Local"), .localized("Public TLS")]
+	@State private var _resetCA = false
 	
 	private let _dataService = NBFetchService()
 	private let _serverPackUrl = "https://backloop.dev/pack.json"
@@ -68,6 +69,23 @@ struct ServerView: View {
 					.disabled(_serverMethod != 1)
 			}
 			
+			if _serverMethod == 0 {
+				Section {
+					Button(.localized("Set Up Local CA"), systemImage: "certificate") {
+						do { try LocalTLSAuthority.shared.openSetup() } catch { showError(error) }
+					}
+					Button(.localized("Check Local CA Trust"), systemImage: "checkmark.shield") {
+						do {
+							try LocalTLSAuthority.shared.requireTrust()
+							UIAlertController.showAlertWithOk(title: .localized("Local CA"), message: .localized("Local HTTPS is trusted."))
+						} catch { showError(error) }
+					}
+					Button(.localized("Reset Local CA"), role: .destructive) { _resetCA = true }
+				} footer: {
+					Text(.localized("Set Up Local CA opens a profile in Safari. Install it in iOS Settings → General → VPN & Device Management, then enable full trust in General → About → Certificate Trust Settings. Keep Feather open during installation. The CA is unique to this app installation; its private key is discarded after issuing the localhost certificate."))
+				}
+			}
+			if _serverMethod != 0 {
 			Section {
 				Button(.localized("Update SSL Certificates"), systemImage: "arrow.down.doc") {
 					FR.downloadSSLCertificates(from: _serverPackUrl) { success in
@@ -89,6 +107,18 @@ struct ServerView: View {
 					}
 				}
 			}
+			}
 		}
+		.confirmationDialog(.localized("Reset Local CA?"), isPresented: $_resetCA, titleVisibility: .visible) {
+			Button(.localized("Reset and Set Up"), role: .destructive) {
+				do { try LocalTLSAuthority.shared.reset(); try LocalTLSAuthority.shared.openSetup() } catch { showError(error) }
+			}
+		} message: {
+			Text(.localized("Remove the old Feather CA profile in iOS Settings, then install and trust the replacement profile."))
+		}
+	}
+
+	private func showError(_ error: Error) {
+		UIAlertController.showAlertWithOk(title: .localized("Local CA"), message: error.localizedDescription)
 	}
 }

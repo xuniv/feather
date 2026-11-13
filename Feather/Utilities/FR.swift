@@ -49,7 +49,7 @@ enum FR {
 		using options: Options,
 		icon: UIImage?,
 		certificate: CertificatePair?,
-		completion: @escaping (Error?) -> Void
+		completion: @escaping (Error?, [String]) -> Void
 	) {
 		Task.detached {
 			let handler = SigningHandler(app: app, options: options)
@@ -61,12 +61,12 @@ enum FR {
 				try await handler.modify()
 				try? await handler.clean()
 				await MainActor.run {
-					completion(nil)
+					completion(nil, handler.warnings)
 				}
 			} catch {
 				try? await handler.clean()
 				await MainActor.run {
-					completion(error)
+					completion(error, [])
 				}
 			}
 		}
@@ -144,7 +144,7 @@ enum FR {
 			case .success(let pack):
 				do {
 					try FileManager.forceWrite(content: pack.key, to: "server.pem")
-					try FileManager.forceWrite(content: pack.cert, to: "server.crt")
+					try FileManager.forceWrite(content: pack.cert + "\n" + pack.ca, to: "server.crt")
 					try FileManager.forceWrite(content: pack.info.domains.commonName, to: "commonName.txt")
 					generator.notificationOccurred(.success)
 					completion(true)

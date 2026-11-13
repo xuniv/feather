@@ -17,6 +17,11 @@ struct SigningTweaksView: View {
 	// MARK: Body
 	var body: some View {
 		NBList(.localized("Tweaks")) {
+			Section {
+				NavigationLink { TweakLibraryView(options: $options) } label: {
+					Label(.localized("Choose from Tweak Folder"), systemImage: "folder")
+				}
+			}
 			NBSection(.localized("Injection")) {
 				SigningOptionsView.picker(
 					.localized("Injection Path"),

@@ -4,6 +4,7 @@ PLATFORMS := iphoneos maccatalyst
 
 TMP := $(TMPDIR)/$(NAME)
 CERT_JSON_URL := https://backloop.dev/pack.json
+BUNDLE_PUBLIC_TLS ?= 0
 
 .PHONY: all clean deps $(PLATFORMS)
 
@@ -18,10 +19,12 @@ deps:
 	rm -rf deps || true
 	mkdir -p deps
 
-	curl -fsSL "$(CERT_JSON_URL)" -o cert.json
-	jq -r '.cert' cert.json > deps/server.crt
-	jq -r '.key1, .key2' cert.json > deps/server.pem
-	jq -r '.info.domains.commonName' cert.json > deps/commonName.txt
+	@if [ "$(BUNDLE_PUBLIC_TLS)" = "1" ]; then \
+		curl -fsSL "$(CERT_JSON_URL)" -o cert.json && \
+		jq -r '.cert, .ca' cert.json > deps/server.crt && \
+		jq -r '.key1, .key2' cert.json > deps/server.pem && \
+		jq -r '.info.domains.commonName' cert.json > deps/commonName.txt; \
+	fi
 
 
 $(PLATFORMS): deps
@@ -33,7 +36,7 @@ $(PLATFORMS): deps
 		DEST="generic/platform=macOS,variant=Mac Catalyst"; \
 	fi; \
 	xcodebuild \
-		-project Feather.xcodeproj \
+		-workspace Feather.xcworkspace \
 		-scheme $(SCHEME) \
 		-configuration Release \
 		-destination "$$DEST" \

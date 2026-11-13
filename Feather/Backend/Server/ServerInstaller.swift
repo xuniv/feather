@@ -29,9 +29,14 @@ class ServerInstaller: Identifiable, ObservableObject {
 		self.app = app
 		self.viewModel = viewModel
 		try _setup()
-		try _configureRoutes()
-		try _server?.server.start()
-		_needsShutdown = true
+		do {
+			try _configureRoutes()
+			try _server?.server.start()
+			_needsShutdown = true
+		} catch {
+			_server?.shutdown()
+			throw error
+		}
 	}
 	
 	deinit {
@@ -39,7 +44,7 @@ class ServerInstaller: Identifiable, ObservableObject {
 	}
 	
 	private func _setup() throws {
-		self._server = try? setupApp(port: port)
+		self._server = try setupApp(port: port)
 	}
 		
 	private func _configureRoutes() throws {

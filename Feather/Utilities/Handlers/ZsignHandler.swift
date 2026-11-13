@@ -10,7 +10,7 @@ import Zsign
 import UIKit
 
 final class ZsignHandler {
-	var hadError: Error?
+	private(set) var warnings: [String] = []
 	
 	private var _appUrl: URL
 	private var _options: Options
@@ -44,32 +44,26 @@ final class ZsignHandler {
 			throw SigningFileHandlerError.missingCertifcate
 		}
 
-		let _ = Zsign.sign(
-			appPath: _appUrl.relativePath,
-			provisionPath: Storage.shared.getFile(.provision, from: cert)?.path ?? "",
-			p12Path: Storage.shared.getFile(.certificate, from: cert)?.path ?? "",
-			p12Password: cert.password ?? "",
-			entitlementsPath: _options.appEntitlementsFile?.path ?? "",
-			removeProvision: !_options.removeProvisioning,
-			completion: { success in
-				if !success {
-					self.hadError = SigningFileHandlerError.signFailed
-				}
-			}
-		)
+		guard let profile = Storage.shared.getFile(.provision, from: cert),
+			let key = Storage.shared.getFile(.certificate, from: cert) else {
+			throw SigningFileHandlerError.missingCertifcate
+		}
+		let directory = FileManager.default.temporaryDirectory.appendingPathComponent("BundleSigning-" + UUID().uuidString)
+		defer { try? FileManager.default.removeItem(at: directory) }
+		let plan = try BundleSigningPlan.make(app: _appUrl, profileURL: profile, options: _options, directory: directory)
+		warnings = plan.warnings
+		guard Zsign.sign(
+			appPath: _appUrl.path, provisionPath: profile.path, p12Path: key.path,
+			p12Password: cert.password ?? "", removeProvision: _options.removeProvisioning,
+			bundleSettings: plan.settings
+		) else { throw SigningFileHandlerError.signFailed }
 	}
 	
 	func adhocSign() async throws {
-		let _ = Zsign.sign(
-			appPath: _appUrl.relativePath,
-			entitlementsPath: _options.appEntitlementsFile?.path ?? "",
-			adhoc: true,
-			removeProvision: !_options.removeProvisioning,
-			completion: { success in
-				if !success {
-					self.hadError = SigningFileHandlerError.signFailed
-				}
-			}
-		)
+		// Ad-hoc output is useful for jailbroken/test devices and is not an OTA signature.
+		guard Zsign.sign(appPath: _appUrl.path, entitlementsPath: _options.appEntitlementsFile?.path ?? "",
+			adhoc: true, removeProvision: _options.removeProvisioning) else {
+			throw SigningFileHandlerError.signFailed
+		}
 	}
 }

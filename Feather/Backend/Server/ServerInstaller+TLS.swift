@@ -27,14 +27,20 @@ extension ServerInstaller {
 		app.threadPool = .init(numberOfThreads: 1)
 		
 		if getServerMethod() != 1 {
-			if let tls = try tls() {
-				app.http.server.configuration.tlsConfiguration = tls
+			do {
+				guard let configuration = try tls() else {
+					throw EntitlementPolicy.Failure(message: "Missing HTTPS certificate or private key. Update SSL Certificates in Installation settings.")
+				}
+				app.http.server.configuration.tlsConfiguration = configuration
+			} catch {
+				app.shutdown()
+				throw error
 			}
 		}
 		
 		app.http.server.configuration.hostname = sni()
 		app.http.server.configuration.tcpNoDelay = true
-		app.http.server.configuration.address = .hostname("0.0.0.0", port: port)
+		app.http.server.configuration.address = .hostname(getServerMethod() == 0 ? "127.0.0.1" : "0.0.0.0", port: port)
 		app.http.server.configuration.port = port
 		app.routes.defaultMaxBodySize = "128mb"
 		app.routes.caseInsensitive = false
@@ -46,6 +52,7 @@ extension ServerInstaller {
 	func sni() -> String {
 		let localhost = "127.0.0.1"
 		
+		if getServerMethod() == 0 { return localhost }
 		if getServerMethod() == 1 {
 			return !self.getIPFix()
 				? (Self.getLocalAddress() ?? localhost)
@@ -56,11 +63,16 @@ extension ServerInstaller {
 	}
 	
 	func tls() throws -> TLSConfiguration? {
-		guard
-			let crt = Self.getUrl("server", ext: "crt"),
-			let pem = Self.getUrl("server", ext: "pem")
-		else {
-			return nil
+		let crt: URL
+		let pem: URL
+		if getServerMethod() == 0 {
+			try LocalTLSAuthority.shared.requireTrust()
+			crt = LocalTLSAuthority.shared.certificateURL
+			pem = LocalTLSAuthority.shared.keyURL
+		} else {
+			guard let certificate = Self.getUrl("server", ext: "crt"), let key = Self.getUrl("server", ext: "pem") else { return nil }
+			crt = certificate
+			pem = key
 		}
 		
 		return try TLSConfiguration.makeServerConfiguration(
@@ -78,8 +90,8 @@ extension ServerInstaller {
 			return nil
 		}
 		
-		return try? String(contentsOf: url, encoding: .utf8)
-			.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard let name = try? String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+		return name.hasPrefix("*.") ? "localhost." + name.dropFirst(2) : name
 	}
 }
 

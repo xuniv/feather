@@ -88,6 +88,6 @@ final class ArchiveHandler: NSObject {
 	}
 	
 	static func getCompressionLevel() -> Int {
-		UserDefaults.standard.integer(forKey: "Feather.compressionLevel")
+		min(max(UserDefaults.standard.integer(forKey: "Feather.compressionLevel"), 0), ZipCompression.allCases.count - 1)
 	}
 }

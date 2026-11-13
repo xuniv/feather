@@ -78,7 +78,26 @@ struct Options: Codable, Equatable {
 	var signingOption: SigningOption
 	
 	// MARK: Options
-	
+
+	// Optional additions keep older per-app presets decodable.
+	var preserveBundleEntitlements: Bool?
+	var additionalProvisioningProfiles: [URL]?
+	var originalAppIdentifier: String?
+	var duplicateApp: Bool?
+	var hideAppIcon: Bool?
+	var documentSupport: Bool?
+	var removeWatchApps: Bool?
+	var removeAppClips: Bool?
+	var removeAllExtensions: Bool?
+	var removeEncryptedExtensions: Bool?
+	var removeSupportedDevices: Bool?
+	var thinToArm64: Bool?
+	var ignoreEncryption: Bool?
+	var enableJIT: Bool?
+	var substrateRuntime: SubstrateRuntime?
+	var ipaPatchMode: IPAPatchMode?
+	var ipaPatchRuntime: URL?
+
 	/// Inject path (i.e. `@rpath`)
 	var injectPath: InjectPath
 	/// Inject folder (i.e. `Frameworks/`)
@@ -165,7 +184,7 @@ struct Options: Codable, Equatable {
 		removeProvisioning: false,
 		changeLanguageFilesForCustomDisplayName: false,
 		injectIntoExtensions: false,
-		mergeEntitlements: false,
+		mergeEntitlements: true,
 		
 		// MARK: Experiments
 		
@@ -180,6 +199,18 @@ struct Options: Codable, Equatable {
 	)
 	
 	// MARK: duplicate values are not recommended!
+
+	enum SubstrateRuntime: String, Codable, CaseIterable, LocalizedDescribable {
+		case automatic = "Automatic"
+		case keepExisting = "Keep Existing Runtime"
+		case replaceWithElleKit = "Replace with ElleKit"
+	}
+
+	enum IPAPatchMode: String, Codable, CaseIterable, LocalizedDescribable {
+		case off = "Off"
+		case appAndExtensions = "App and Extensions"
+		case extensionsOnly = "Extensions Only"
+	}
 
 	enum AppAppearance: String, Codable, CaseIterable, LocalizedDescribable {
 		case `default`
@@ -218,13 +249,13 @@ struct Options: Codable, Equatable {
 	enum SigningOption: String, Codable, CaseIterable, LocalizedDescribable {
 		case `default`
 		case onlyModify
-//		case adhoc
+		case adhoc
 
 		var localizedDescription: String {
 			switch self {
 			case .default: .localized("Default")
 			case .onlyModify: .localized("Modify")
-//			case .adhoc: .localized("Ad-hoc")
+			case .adhoc: .localized("Ad-hoc")
 			}
 		}
 	}

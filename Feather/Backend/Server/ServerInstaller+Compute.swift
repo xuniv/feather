@@ -55,12 +55,15 @@ extension ServerInstaller {
 	}
 	
 	private func _iTunesLink(with url: String) -> String {
-		return "itms-services://?action=download-manifest&url=\(url)"
+		var components = URLComponents()
+		components.scheme = "itms-services"
+		components.queryItems = [URLQueryItem(name: "action", value: "download-manifest"), URLQueryItem(name: "url", value: url)]
+		return components.string ?? ""
 	}
 
 	var displayImageSmallEndpoint: URL {
 		var comps = URLComponents()
-		comps.scheme = "https"
+		comps.scheme = self.getServerMethod() == 1 ? "http" : "https"
 		comps.host = sni()
 		comps.path = "/app57x57.png"
 		comps.port = port
@@ -69,7 +72,7 @@ extension ServerInstaller {
 
 	var displayImageLargeEndpoint: URL {
 		var comps = URLComponents()
-		comps.scheme = "https"
+		comps.scheme = self.getServerMethod() == 1 ? "http" : "https"
 		comps.host = sni()
 		comps.path = "/app512x512.png"
 		comps.port = port

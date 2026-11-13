@@ -13,7 +13,7 @@ import NimbleViews
 struct SigningView: View {
 	@Environment(\.dismiss) var dismiss
 	@StateObject private var _optionsManager = OptionsManager.shared
-	
+
 	@State private var _temporaryOptions: Options = OptionsManager.shared.options
 	@State private var _temporaryCertificate: Int
 	@State private var _isAltPickerPresenting = false
@@ -22,27 +22,27 @@ struct SigningView: View {
 	@State private var _isSigning = false
 	@State private var _selectedPhoto: PhotosPickerItem? = nil
 	@State var appIcon: UIImage?
-	
+
 	// MARK: Fetch
 	@FetchRequest(
 		entity: CertificatePair.entity(),
 		sortDescriptors: [NSSortDescriptor(keyPath: \CertificatePair.date, ascending: false)],
 		animation: .snappy
 	) private var certificates: FetchedResults<CertificatePair>
-	
+
 	private func _selectedCert() -> CertificatePair? {
 		guard certificates.indices.contains(_temporaryCertificate) else { return nil }
 		return certificates[_temporaryCertificate]
 	}
-	
+
 	var app: AppInfoPresentable
-	
+
 	init(app: AppInfoPresentable) {
 		self.app = app
 		let storedCert = UserDefaults.standard.integer(forKey: "feather.selectedCert")
 		__temporaryCertificate = State(initialValue: storedCert)
 	}
-		
+
 	// MARK: Body
 	var body: some View {
 		NBNavigationView("", displayMode: .inline) {
@@ -50,7 +50,7 @@ struct SigningView: View {
 				_customizationOptions(for: app)
 				_cert()
 				_customizationProperties(for: app)
-				
+
 				// horrible
 				Rectangle()
 					.foregroundStyle(.clear)
@@ -108,7 +108,7 @@ struct SigningView: View {
 			.photosPicker(isPresented: $_isImagePickerPresenting, selection: $_selectedPhoto)
 			.onChange(of: _selectedPhoto) { newValue in
 				guard let newValue else { return }
-				
+
 				Task {
 					if let data = try? await newValue.loadTransferable(type: Data.self),
 					   let image = UIImage(data: data)?.resizeToSquare() {
@@ -129,14 +129,14 @@ struct SigningView: View {
 			{
 				_temporaryOptions.appIdentifier = "\(identifier).\(_optionsManager.options.ppqString)"
 			}
-			
+
 			if
 				let currentBundleId = app.identifier,
 				let newBundleId = _temporaryOptions.identifiers[currentBundleId]
 			{
 				_temporaryOptions.appIdentifier = newBundleId
 			}
-			
+
 			if
 				let currentName = app.name,
 				let newName = _temporaryOptions.displayNames[currentName]
@@ -164,7 +164,7 @@ extension SigningView {
 					FRAppIconView(app: app, size: 56)
 				}
 			}
-			
+
 			_infoCell(.localized("Name"), desc: _temporaryOptions.appName ?? app.name) {
 				SigningPropertiesView(
 					title: .localized("Name"),
@@ -188,7 +188,7 @@ extension SigningView {
 			}
 		}
 	}
-	
+
 	@ViewBuilder
 	private func _cert() -> some View {
 		NBSection(.localized("Signing")) {
@@ -207,7 +207,7 @@ extension SigningView {
 			}
 		}
 	}
-	
+
 	@ViewBuilder
 	private func _customizationProperties(for app: AppInfoPresentable) -> some View {
 		NBSection(.localized("Advanced")) {
@@ -218,27 +218,27 @@ extension SigningView {
 						options: $_temporaryOptions.optional()
 					)
 				}
-				
+
 				NavigationLink(.localized("Frameworks & PlugIns")) {
 					SigningFrameworksView(
 						app: app,
 						options: $_temporaryOptions.optional()
 					)
 				}
-			
+
 				NavigationLink(.localized("Entitlements") + " (BETA)") {
 					SigningEntitlementsView(
 						bindingValue: $_temporaryOptions.appEntitlementsFile
 					)
 				}
-				
+
 				NavigationLink(.localized("Tweaks")) {
 					SigningTweaksView(
 						options: $_temporaryOptions
 					)
 				}
 			}
-			
+
 			NavigationLink(.localized("Properties")) {
 				Form { SigningOptionsView(
 					options: $_temporaryOptions,
@@ -248,7 +248,7 @@ extension SigningView {
 			}
 		}
 	}
-	
+
 	@ViewBuilder
 	private func _infoCell<V: View>(_ title: String, desc: String?, @ViewBuilder destination: () -> V) -> some View {
 		NavigationLink {
@@ -278,37 +278,45 @@ extension SigningView {
 		let generator = UIImpactFeedbackGenerator(style: .light)
 		generator.impactOccurred()
 		_isSigning = true
-		
+
 		FR.signPackageFile(
 			app,
 			using: _temporaryOptions,
 			icon: appIcon,
 			certificate: _selectedCert()
-		) { error in
+		) { error, warnings in
 			if let error {
 				let ok = UIAlertAction(title: .localized("Dismiss"), style: .cancel) { _ in
 					dismiss()
 				}
-				
+
 				UIAlertController.showAlert(
 					title: "Error",
 					message: error.localizedDescription,
 					actions: [ok]
 				)
 			} else {
-				if
-					_temporaryOptions.post_deleteAppAfterSigned,
-					!app.isSigned
-				{
-					Storage.shared.deleteApp(for: app)
-				}
-				
-				if _temporaryOptions.post_installAppAfterSigned {
-					DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-						NotificationCenter.default.post(name: Notification.Name("Feather.installApp"), object: nil)
+				let finish = {
+					if
+						_temporaryOptions.post_deleteAppAfterSigned,
+						!app.isSigned
+					{
+						Storage.shared.deleteApp(for: app)
 					}
+
+					if _temporaryOptions.post_installAppAfterSigned {
+						DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+							NotificationCenter.default.post(name: Notification.Name("Feather.installApp"), object: nil)
+						}
+					}
+					dismiss()
 				}
-				dismiss()
+				if warnings.isEmpty { finish() }
+				else {
+					let message = String.localized("Signing completed with compatibility notices. Review the listed capabilities before installing; matching provisioning profiles may be required.") + "\n\n" + warnings.prefix(12).joined(separator: "\n")
+					let action = UIAlertAction(title: .localized("Done"), style: .default) { _ in finish() }
+					UIAlertController.showAlert(title: .localized("Signing Compatibility"), message: message, actions: [action])
+				}
 			}
 		}
 	}

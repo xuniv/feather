@@ -27,9 +27,13 @@ class TweakHandler {
 		self._app = app
 		self._options = options
 		self._urls = options.injectionFiles
+		if let runtime = options.substrateRuntime {
+			self._options.experiment_replaceSubstrateWithEllekit = runtime == .replaceWithElleKit
+		}
 	}
 	
 	private func _checkEllekit() async throws {
+		if _options.substrateRuntime == .keepExisting { return }
 		let frameworksPath = _app.appendingPathComponent("Frameworks").appendingPathComponent("CydiaSubstrate.framework")
 
 		func addEllekit() async throws {
@@ -73,6 +77,7 @@ class TweakHandler {
 
 		let baseTmpDir = _fileManager.temporaryDirectory.appendingPathComponent("FeatherTweak_\(UUID().uuidString)")
 		try _fileManager.createDirectoryIfNeeded(at: baseTmpDir)
+		defer { try? _fileManager.removeItem(at: baseTmpDir) }
 		
 		// check for appropriate files, if theres debs
 		// it will extract then add a url, if theres no url, i.e.
@@ -98,7 +103,7 @@ class TweakHandler {
 
 		// inject into all extensions if enabled
 		if _options.injectIntoExtensions && !_injectedDylibNames.isEmpty {
-			_injectIntoAllExtensions(dylibNames: _injectedDylibNames)
+			try _injectIntoAllExtensions(dylibNames: _injectedDylibNames)
 		}
 	}
 	
@@ -110,17 +115,24 @@ class TweakHandler {
 				try await _handleDylib(at: url)
 			case "framework":
 				let destinationURL = _app.appendingPathComponent("Frameworks").appendingPathComponent(url.lastPathComponent)
-				try _fileManager.moveFileIfNeeded(from: url, to: destinationURL)
+				try _copyPayload(from: url, to: destinationURL)
 				try await _handleDylib(framework: destinationURL)
 			case "bundle":
 				let destinationURL = _app.appendingPathComponent(url.lastPathComponent)
-				try _fileManager.moveFileIfNeeded(from: url, to: destinationURL)
+				try _copyPayload(from: url, to: destinationURL)
 			default:
 				Logger.misc.warning("Unsupported file type: \(url.lastPathComponent), skipping.")
 			}
 		}
 	}
 	
+	private func _copyPayload(from source: URL, to destination: URL) throws {
+		guard source.standardizedFileURL != destination.standardizedFileURL else { return }
+		try _fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+		if _fileManager.fileExists(atPath: destination.path) { try _fileManager.removeItem(at: destination) }
+		try _fileManager.copyItem(at: source, to: destination)
+	}
+
 	// Inject imported dylib file
 	private func _handleDylib(at url: URL) async throws {
 		var destinationURL = _app
@@ -143,7 +155,7 @@ class TweakHandler {
 		destinationURL = destinationURL.appendingPathComponent(url.lastPathComponent)
 		
 		
-		try _fileManager.moveFileIfNeeded(from: url, to: destinationURL)
+		try _copyPayload(from: url, to: destinationURL)
 		
 		guard let appexe = Bundle(url: _app)?.executableURL else {
 			return
@@ -159,10 +171,11 @@ class TweakHandler {
 			with: "@rpath/CydiaSubstrate.framework/CydiaSubstrate"
 		)
 		// inject if there's a valid app main executable
-		_ = Zsign.injectDyLib(
-			appExecutable: appexe.path,
-			with: "\(_options.injectPath.rawValue)\(injectFolder.rawValue)\(destinationURL.lastPathComponent)"
-		)
+		let loadPath = "\(_options.injectPath.rawValue)\(injectFolder.rawValue)\(destinationURL.lastPathComponent)"
+		guard Zsign.listDylibs(appExecutable: appexe.path).contains(loadPath) ||
+			Zsign.injectDyLib(appExecutable: appexe.path, with: loadPath) else {
+			throw EntitlementPolicy.Failure(message: "Failed to inject \(destinationURL.lastPathComponent).")
+		}
 
 		_injectedDylibNames.append(destinationURL.lastPathComponent)
 	}
@@ -186,10 +199,12 @@ class TweakHandler {
 			with: "@rpath/CydiaSubstrate.framework/CydiaSubstrate"
 		)
 		// inject if there's a valid app main executable
-		_ = Zsign.injectDyLib(
-			appExecutable: appexe.path,
-			with: "@executable_path/Frameworks/\(framework.lastPathComponent)/\(fexe.lastPathComponent)"
-		)
+		let loadPath = "@executable_path/Frameworks/\(framework.lastPathComponent)/\(fexe.lastPathComponent)"
+		guard Zsign.listDylibs(appExecutable: appexe.path).contains(loadPath) ||
+			Zsign.injectDyLib(appExecutable: appexe.path, with: loadPath) else {
+			throw EntitlementPolicy.Failure(message: "Failed to inject \(framework.lastPathComponent).")
+		}
+		_injectedDylibNames.append("\(framework.lastPathComponent)/\(fexe.lastPathComponent)")
 	}
 	
 	// Extracy imported deb file
@@ -258,38 +273,19 @@ class TweakHandler {
 		}
 	}
 
-	// Discovers all .appex bundles in the app's PlugIns and Extensions directories
+	// Extensions may be nested inside companion apps as well as PlugIns.
 	private func _discoverAppExtensions() -> [URL] {
+		guard let enumerator = _fileManager.enumerator(at: _app, includingPropertiesForKeys: [.isSymbolicLinkKey]) else { return [] }
 		var extensions: [URL] = []
-		
-		let plugInsPath = _app.appendingPathComponent("PlugIns")
-		let extensionsPath = _app.appendingPathComponent("Extensions")
-		
-		for directory in [plugInsPath, extensionsPath] {
-			guard _fileManager.fileExists(atPath: directory.path) else { continue }
-			
-			do {
-				let contents = try _fileManager.contentsOfDirectory(
-					at: directory,
-					includingPropertiesForKeys: nil,
-					options: [.skipsHiddenFiles]
-				)
-				
-				let appexBundles = contents.filter { url in
-					url.pathExtension.lowercased() == "appex" && url.hasDirectoryPath
-				}
-				
-				extensions.append(contentsOf: appexBundles)
-			} catch {
-				Logger.misc.warning("Failed to enumerate \(directory.path): \(error.localizedDescription)")
-			}
+		for case let url as URL in enumerator {
+			if (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true { enumerator.skipDescendants(); continue }
+			if url.pathExtension == "appex" { extensions.append(url) }
 		}
-		
 		return extensions
 	}
 
 	// Injects a dylib into an extension's executable
-	private func _injectIntoExtension(extensionURL: URL, dylibName: String) {
+	private func _injectIntoExtension(extensionURL: URL, dylibName: String) throws {
 		guard 
 			let extensionBundle = Bundle(url: extensionURL),
 			let extensionExecutable = extensionBundle.executableURL 
@@ -298,22 +294,12 @@ class TweakHandler {
 			return
 		}
 		
-		var injectFolder = _options.injectFolder
-		if _options.injectPath == .rpath && _options.injectFolder == .frameworks {
-			injectFolder = .root
-		}
-		
-		let injectPath: String
-		if _options.injectPath == .rpath {
-			injectPath = "@rpath/\(dylibName)"
-		} else {
-			if injectFolder == .frameworks {
-				injectPath = "@executable_path/../../Frameworks/\(dylibName)"
-			} else {
-				injectPath = "@executable_path/../../\(dylibName)"
-			}
-		}
-		
+		// Extension processes do not inherit the main app's @rpath search list.
+		let depth = extensionURL.pathComponents.count - _app.pathComponents.count
+		let inFrameworks = dylibName.contains(".framework/") || _options.injectFolder == .frameworks
+		let injectPath = "@executable_path/" + String(repeating: "../", count: depth) + (inFrameworks ? "Frameworks/" : "") + dylibName
+		if Zsign.listDylibs(appExecutable: extensionExecutable.path).contains(injectPath) { return }
+
 		let success = Zsign.injectDyLib(
 			appExecutable: extensionExecutable.path,
 			with: injectPath
@@ -322,12 +308,12 @@ class TweakHandler {
 		if success {
 			Logger.misc.info("Injected \(dylibName) into extension: \(extensionURL.lastPathComponent)")
 		} else {
-			Logger.misc.warning("Failed to inject into extension: \(extensionURL.lastPathComponent)")
+			throw EntitlementPolicy.Failure(message: "Failed to inject into extension: \(extensionURL.lastPathComponent)")
 		}
 	}
 
 	// Injects all dylibs into all discovered extensions
-	private func _injectIntoAllExtensions(dylibNames: [String]) {
+	private func _injectIntoAllExtensions(dylibNames: [String]) throws {
 		let extensions = _discoverAppExtensions()
 
 		guard !extensions.isEmpty else {
@@ -339,7 +325,7 @@ class TweakHandler {
 
 		for extensionURL in extensions {
 			for dylibName in dylibNames {
-				_injectIntoExtension(extensionURL: extensionURL, dylibName: dylibName)
+				try _injectIntoExtension(extensionURL: extensionURL, dylibName: dylibName)
 			}
 		}
 	}

@@ -11,6 +11,7 @@ import UIKit
 import OSLog
 
 final class SigningHandler: NSObject {
+	private(set) var warnings: [String] = []
 	private let _fileManager = FileManager.default
 	private let _uuid = UUID().uuidString
 	private var _movedAppPath: URL?
@@ -59,11 +60,18 @@ final class SigningHandler: NSObject {
 		guard
 			let infoDictionary = NSDictionary(
 				contentsOf: movedAppPath.appendingPathComponent("Info.plist")
-			)!.mutableCopy() as? NSMutableDictionary
+			)?.mutableCopy() as? NSMutableDictionary
 		else {
 			throw SigningFileHandlerError.infoPlistNotFound
 		}
 		
+		_options.originalAppIdentifier = infoDictionary["CFBundleIdentifier"] as? String
+		if _options.duplicateApp == true, let identifier = _options.originalAppIdentifier {
+			let suffix = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).lowercased()
+			_options.appIdentifier = identifier + "." + suffix
+			_options.appName = (_options.appName ?? infoDictionary["CFBundleDisplayName"] as? String ?? "App") + " " + suffix
+		}
+		try AppCompatibility.removeComponents(at: movedAppPath, options: _options)
 		if
 			let identifier = _options.appIdentifier,
 			let oldIdentifier = infoDictionary["CFBundleIdentifier"] as? String
@@ -92,7 +100,7 @@ final class SigningHandler: NSObject {
 			try await _locateMachosAndChangeToSDK26(for: movedAppPath)
 		}
 		
-		if _options.experiment_replaceSubstrateWithEllekit {
+		if _options.experiment_replaceSubstrateWithEllekit || _options.substrateRuntime == .replaceWithElleKit {
 			try await _inject(for: movedAppPath, with: _options)
 		} else {
 			if !_options.injectionFiles.isEmpty {
@@ -103,9 +111,8 @@ final class SigningHandler: NSObject {
 		// iOS "26" (19) needs special treatment
 		try await _locateMachosAndFixupArm64eSlice(for: movedAppPath)
 		
-		if _options.mergeEntitlements && _options.appEntitlementsFile == nil {
-			try await _mergeEntitlements(for: movedAppPath, with: _options)
-		}
+		try IPAPatchHandler.apply(to: movedAppPath, options: _options)
+		try AppCompatibility.patchBinaries(at: movedAppPath, options: _options)
 		
 		let handler = ZsignHandler(appUrl: movedAppPath, options: _options, cert: appCertificate)
 		try await handler.disinject()
@@ -115,20 +122,18 @@ final class SigningHandler: NSObject {
 			appCertificate != nil
 		{
 			try await handler.sign()
-//		} else if _options.signingOption == .adhoc {
-//			try await handler.adhocSign()
+		} else if _options.signingOption == .adhoc {
+			try await handler.adhocSign()
 		} else if _options.signingOption == .onlyModify {
 			//
 		} else {
 			throw SigningFileHandlerError.missingCertifcate
 		}
 		
+		warnings = handler.warnings
 		try await self.move()
 		try await self.addToDatabase()
 		
-		if let error = handler.hadError {
-			throw error
-		}
 	}
 	
 	func move() async throws {
@@ -191,6 +196,15 @@ final class SigningHandler: NSObject {
 
 extension SigningHandler {
 	private func _modifyDict(using infoDictionary: NSMutableDictionary, with options: Options, to app: URL) async throws {
+		if options.documentSupport == true {
+			infoDictionary["LSSupportsOpeningDocumentsInPlace"] = true
+			infoDictionary["UIFileSharingEnabled"] = true
+		}
+		if options.hideAppIcon == true {
+			var tags = infoDictionary["SBAppTags"] as? [String] ?? []
+			if !tags.contains("hidden") { tags.append("hidden") }
+			infoDictionary["SBAppTags"] = tags
+		}
 		if options.fileSharing { infoDictionary.setObject(true, forKey: "UISupportsDocumentBrowser" as NSCopying) }
 		if options.itunesFileSharing { infoDictionary.setObject(true, forKey: "UIFileSharingEnabled" as NSCopying) }
 		if options.proMotion { infoDictionary.setObject(true, forKey: "CADisableMinimumFrameDurationOnPhone" as NSCopying) }
@@ -209,7 +223,7 @@ extension SigningHandler {
 		if options.experiment_supportLiquidGlass { infoDictionary.setObject(false, forKey: "UIDesignRequiresCompatibility" as NSCopying) }
 		
 		// useless crap
-		if infoDictionary["UISupportedDevices"] != nil {
+		if options.removeSupportedDevices != false, infoDictionary["UISupportedDevices"] != nil {
 			infoDictionary.removeObject(forKey: "UISupportedDevices")
 		}
 		
@@ -289,6 +303,16 @@ extension SigningHandler {
 		new newIdentifier: String,
 		for app: URL
 	) async throws {
+		func remap(_ value: String) -> String {
+			guard !oldIdentifier.isEmpty else { return value }
+			if value == oldIdentifier || value.hasPrefix(oldIdentifier + ".") {
+				return newIdentifier + value.dropFirst(oldIdentifier.count)
+			}
+			if value == "group." + oldIdentifier || value.hasPrefix("group." + oldIdentifier + ".") {
+				return "group." + newIdentifier + value.dropFirst(oldIdentifier.count + 6)
+			}
+			return value
+		}
 		let pluginBundles = _enumerateFiles(at: app) {
 			$0.hasSuffix(".app") || $0.hasSuffix(".appex")
 		}
@@ -304,7 +328,7 @@ extension SigningHandler {
 			
 			// CFBundleIdentifier
 			if let oldValue = infoDict["CFBundleIdentifier"] as? String {
-				let newValue = oldValue.replacingOccurrences(of: oldIdentifier, with: newIdentifier)
+				let newValue = remap(oldValue)
 				if oldValue != newValue {
 					infoDict["CFBundleIdentifier"] = newValue
 					didChange = true
@@ -313,7 +337,7 @@ extension SigningHandler {
 			
 			// WKCompanionAppBundleIdentifier
 			if let oldValue = infoDict["WKCompanionAppBundleIdentifier"] as? String {
-				let newValue = oldValue.replacingOccurrences(of: oldIdentifier, with: newIdentifier)
+				let newValue = remap(oldValue)
 				if oldValue != newValue {
 					infoDict["WKCompanionAppBundleIdentifier"] = newValue
 					didChange = true
@@ -322,12 +346,13 @@ extension SigningHandler {
 			if let extensionDict = (infoDict["NSExtension"] as? NSDictionary)?.mutableCopy() as? NSMutableDictionary {
 				// NSExtension → NSExtensionAttributes → WKAppBundleIdentifier
 				if
-					let attributes = extensionDict["NSExtensionAttributes"] as? NSMutableDictionary,
+					let attributes = (extensionDict["NSExtensionAttributes"] as? NSDictionary)?.mutableCopy() as? NSMutableDictionary,
 					let oldValue = attributes["WKAppBundleIdentifier"] as? String
 				{
-					let newValue = oldValue.replacingOccurrences(of: oldIdentifier, with: newIdentifier)
+					let newValue = remap(oldValue)
 					if oldValue != newValue {
 						attributes["WKAppBundleIdentifier"] = newValue
+						extensionDict["NSExtensionAttributes"] = attributes
 						didChange = true
 					}
 				}
@@ -336,7 +361,7 @@ extension SigningHandler {
 				if
 					let oldValue = extensionDict["NSExtensionFileProviderDocumentGroup"] as? String
 				{
-					let newValue = oldValue.replacingOccurrences(of: oldIdentifier, with: newIdentifier)
+					let newValue = remap(oldValue)
 					if oldValue != newValue {
 						extensionDict["NSExtensionFileProviderDocumentGroup"] = newValue
 						didChange = true
@@ -355,7 +380,7 @@ extension SigningHandler {
 	private func _removePresetFiles(for app: URL) async throws {
 		var files = [
 			"_CodeSignature", // Fallbaccck for some reason the locate doesnt work
-			"embedded.mobileprovision", // Remove this because zsign doesn't replace it
+			"embedded.mobileprovision", // Replaced by the validated per-bundle signing plan
 			"com.apple.WatchPlaceholder", // Useless
 			"SignedByEsign" // Useless
 		].map {
@@ -385,8 +410,13 @@ extension SigningHandler {
 	}
 	
 	private func _removeFiles(for app: URL, from appendingComponent: [String]) async throws {
-		let filesToRemove = appendingComponent.map {
-			app.appendingPathComponent($0)
+		let root = app.resolvingSymlinksInPath().standardizedFileURL.path + "/"
+		let filesToRemove = try appendingComponent.map { path -> URL in
+			let candidate = app.appendingPathComponent(path).resolvingSymlinksInPath().standardizedFileURL
+			guard candidate.path.hasPrefix(root) else {
+				throw EntitlementPolicy.Failure(message: "Removal path escapes the application bundle.")
+			}
+			return candidate
 		}
 		
 		for url in filesToRemove {
@@ -401,7 +431,7 @@ extension SigningHandler {
 	
 	private func _locateMachosAndChangeToSDK26(for app: URL) async throws {
 		if let url = Bundle(url: app)?.executableURL {
-			LCPatchMachOForSDK26(app.appendingPathComponent(url.relativePath).relativePath)
+			LCPatchMachOForSDK26(url.path)
 		}
 	}
 	
@@ -434,115 +464,7 @@ extension SigningHandler {
 		}
 	}
 	
-	// shit ass code
-	private func _mergeEntitlements(for app: URL, with options: Options) async throws {
-		guard let appBinPath = Bundle(url: app)?.executableURL else {
-			throw SigningFileHandlerError.appNotFound
-		}
-		
-		guard 
-			let binaryProfile = LCGetMachOEntitlements(appBinPath.path),
-			let binaryEntitlementsDict = (try? PropertyListSerialization.propertyList(
-				from: binaryProfile,
-				options: [],
-				format: nil
-			)) as? [String: Any]
-		else {
-			return
-		}
-		
-		guard 
-			let cert = self.appCertificate, 
-			let ourEntitlements = CertificateReader(Storage.shared.getFile(.provision, from: cert)).decoded
-		else {
-			return 
-		}
-		
-		let ourTeamIdentifier = ourEntitlements.TeamIdentifier[0]
-		let ourBundleIdentifer = options.appIdentifier ?? _app.identifier
-		
-		var baseDictionary: [String: Any] = (ourEntitlements.Entitlements ?? [:]).mapValues { $0.value }
-		let additionsDictionary: [String: Any] = binaryEntitlementsDict
 
-		
-		// replaces wildcards in base entitlements with new application id
-		// aggressive approach though, lets just hope this works :)
-		if let ourBundleIdentifer {
-			func replaceWildcards(in value: Any, with newAppID: String) -> Any {
-				if let stringValue = value as? String {
-					return stringValue.replacingOccurrences(of: "*", with: newAppID)
-				} else if let arrayValue = value as? [Any] {
-					return arrayValue.map { replaceWildcards(in: $0, with: newAppID) }
-				} else if let dictValue = value as? [String: Any] {
-					return dictValue.mapValues { replaceWildcards(in: $0, with: newAppID) }
-				} else if let anyCodable = value as? AnyCodable {
-					let substituted = replaceWildcards(in: anyCodable.value, with: newAppID)
-					return AnyCodable(substituted)
-				}
-				return value
-			}
-			
-			baseDictionary = baseDictionary.reduce(into: [:]) { result, entry in
-				let (key, value) = entry
-
-				if 
-					key == "com.apple.developer.associated-domains" ||
-					key == "application.identifier"
-				{
-					result[key] = value
-					return
-				}
-
-				result[key] = replaceWildcards(
-					in: value,
-					with: ourBundleIdentifer
-				)
-			}
-		}
-		
-		// this will not consider app extensions, zsign doesnt have functionality be more specific
-		// with provisioning profiles, this works fine for impactors "Only register main bundle" though.
-		if let keychainGroups = additionsDictionary["keychain-access-groups"] as? [Any] {
-			baseDictionary["keychain-access-groups"] = keychainGroups
-		}
-		
-		let regex = try NSRegularExpression(pattern: "^[A-Z0-9]{10}\\.")
-		
-		if let groups = baseDictionary["keychain-access-groups"] as? [String] {
-			// remove anything that does not match XXXXXXXXXX. (for example, com.apple.token)
-			// only XXXXXXXXXX.* is allowed on keychain-access-groups
-			let validGroups = groups.filter { group in
-				let range = NSRange(location: 0, length: group.utf16.count)
-				return regex.firstMatch(in: group, options: [], range: range) != nil
-			}
-			
-			let updatedGroups = validGroups.map { group -> String in
-				let range = NSRange(location: 0, length: group.utf16.count)
-				if regex.firstMatch(in: group, options: [], range: range) != nil && group.count >= 11 {
-					let suffix = group.suffix(from: group.index(group.startIndex, offsetBy: 11))
-					return "\(ourTeamIdentifier).\(suffix)"
-				}
-				return group
-			}
-			
-			baseDictionary["keychain-access-groups"] = updatedGroups
-		}
-		
-		let plistData = try PropertyListSerialization.data(
-			fromPropertyList: baseDictionary,
-			format: .xml,
-			options: 0
-		)
-
-		let tempEntitlementsURL = _uniqueWorkDir
-			.appendingPathComponent(UUID().uuidString)
-			.appendingPathExtension("plist")
-		
-		try plistData.write(to: tempEntitlementsURL, options: .atomic)
-		
-		_options.appEntitlementsFile = tempEntitlementsURL
-	}
-	
 	private func _enumerateFiles(at base: URL, where predicate: (String) -> Bool) -> [URL] {
 		guard let fileEnum = _fileManager.enumerator(atPath: base.path) else {
 			return []
