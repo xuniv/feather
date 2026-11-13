@@ -17,6 +17,7 @@ struct InstallPreviewView: View {
 	@AppStorage("Feather.useShareSheetForArchiving") private var _useShareSheet: Bool = false
 	@AppStorage("Feather.installationMethod") private var _installationMethod: Int = 0
 	@State private var _isWebviewPresenting = false
+	@State private var _hasStarted = false
 	@State private var progressTask: Task<Void, Never>?
 	
 	var app: AppInfoPresentable
@@ -136,6 +137,8 @@ struct InstallPreviewView: View {
 	}
 	
 	private func _install() {
+		guard !_hasStarted else { return }
+		_hasStarted = true
 		guard isSharing || app.identifier != Bundle.main.bundleIdentifier! || _installationMethod == 1 else {
 			UIAlertController.showAlertWithOk(
 				title: .localized("Install"),
