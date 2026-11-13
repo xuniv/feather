@@ -14,6 +14,12 @@
       "tintColor": "848ef9",
       "versions": [
         {
+          "version": "2.9.1",
+          "date": "2026-11-13T07:02:52Z",
+          "size": 14363132,
+          "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.1/Feather-unsigned.ipa"
+        },
+        {
           "version": "2.9.0",
           "date": "2026-07-05T02:11:53Z",
           "size": 12598584,
@@ -27,10 +33,10 @@
         "https://github.com/khcrysalis/Feather/blob/v1.x/Images/Sign.png?raw=true",
         "https://github.com/khcrysalis/Feather/blob/v1.x/Images/Store.png?raw=true"
       ],
-      "version": "2.9.0",
-      "versionDate": "2026-07-05T02:11:53Z",
-      "size": 12598584,
-      "downloadURL": "https://github.com/claration/Feather/releases/download/v2.9.0/Feather.ipa"
+      "version": "2.9.1",
+      "versionDate": "2026-11-13T07:02:52Z",
+      "size": 14363132,
+      "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.1/Feather-unsigned.ipa"
     }
   ],
   "news": [
