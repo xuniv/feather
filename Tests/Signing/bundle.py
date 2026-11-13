@@ -127,12 +127,13 @@ def run(driver):
             command(str(driver), str(root), mode)
             for name, bundle, identifier in entries:
                 check(bundle, identifier, root / (name + '.mobileprovision'), mode == 'remove')
-        if sys.platform == 'darwin':
-            # Production signatures contain an Apple-anchor requirement, which the
-            # synthetic CA cannot meet. Verify ad-hoc structural validity separately.
-            command(str(driver), str(root), 'adhoc')
-            for name, bundle, identifier in reversed(entries):
-                check(bundle, identifier, root / (name + '.mobileprovision'), False, verify_cms=False)
+        # No certificate or profile paths are passed to the ad-hoc signing assets.
+        command(str(driver), str(root), 'adhoc')
+        for name, bundle, identifier in reversed(entries):
+            check(bundle, identifier, root / (name + '.mobileprovision'), True, verify_cms=False)
+            if sys.platform == 'darwin':
+                # Synthetic certificates cannot meet the production Apple anchor;
+                # verify ad-hoc structure using the system verifier instead.
                 command('/usr/bin/codesign', '--verify', '--strict', '--verbose=2', str(bundle))
         # A valid p12 must not sign using a profile which omits its certificate.
         profile['DeveloperCertificates'] = []

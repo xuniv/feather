@@ -12,13 +12,9 @@ int main(int argc, char** argv) {
     for (const std::string path : {"/", "PlugIns/Widget.appex", "Nested/Companion.app"}) {
         auto asset = std::unique_ptr<ZSignAsset>(new ZSignAsset());
         const std::string name = path == "/" ? "main" : path == "PlugIns/Widget.appex" ? "widget" : "companion";
-        if (!asset->Init("", root + "/identity.p12", root + "/" + name + ".mobileprovision",
-            root + "/" + name + ".plist", "fixture", false, false, false)) return 1;
-        if (std::string(argv[2]) == "adhoc") {
-            asset->m_bAdhoc = true;
-            asset->m_strSubjectCN.clear();
-            asset->m_strTeamId.clear();
-        }
+        bool adhoc = std::string(argv[2]) == "adhoc";
+        if (!asset->Init("", adhoc ? "" : root + "/identity.p12", adhoc ? "" : root + "/" + name + ".mobileprovision",
+            root + "/" + name + ".plist", adhoc ? "" : "fixture", adhoc, false, false)) return 1;
         bundle.m_signingAssetsByPath[path] = asset.get();
         assets.push_back(std::move(asset));
     }

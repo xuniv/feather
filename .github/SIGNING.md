@@ -86,8 +86,10 @@ supports it, opening documents in place, removing Watch apps/App Clips/all or
 only encrypted extensions, optional supported-device removal, arm64 thinning,
 and encryption-check override. An override does not decrypt binaries.
 
-JIT requests `get-task-allow` only when permitted by every affected profile. It
-does not activate JIT by itself. Ad-hoc signing recursively fakesigns binaries;
+JIT requests `get-task-allow` only when permitted by every affected profile during
+certificate signing. It does not activate JIT by itself. Ad-hoc signing preserves
+each app/extension's own entitlements without a profile allowlist, applies custom
+values to the main app only, and removes stale embedded profiles. It recursively fakesigns binaries;
 its output needs an environment which accepts ad-hoc code and is not an OTA
 signature for a normal iOS device.
 
@@ -105,3 +107,15 @@ MachOCompatibility.swift for identity, capability, wildcard, thinning and malfor
 header regressions. The Validate Signing workflow runs these tests and builds
 iOS without signing credentials. It does not upload certificates, provisioning
 profiles, user payloads or device diagnostics.
+
+## Unsigned releases
+
+After reviewed changes reach main, run **Release Unsigned IPA** with the version
+tag matching Feather.xcconfig. The build uses no signing credentials, removes
+linker-generated ad-hoc signatures, and packages only Payload/Feather.app. The
+validator rejects remaining code signatures, embedded profiles, key/certificate
+files, encryption, unsafe archive paths and version mismatches.
+
+The publish job downloads and revalidates the build artifact, checks SHA-256, and
+publishes Feather-unsigned.ipa plus SHA256SUMS. ZIP entries contain no host extra
+fields and use fixed timestamps. The resulting IPA must be signed by its user.

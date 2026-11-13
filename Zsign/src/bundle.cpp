@@ -414,7 +414,7 @@ bool ZBundle::SignNode(jvalue& jvNode)
 		// Profiles are part of the resource seal and must be written before it.
 		if (selected != m_signingAssetsByPath.end()) {
 			string profile = strBaseFolder + "/embedded.mobileprovision";
-			if (m_bRemoveProvision) {
+			if (m_bRemoveProvision || pNodeAsset->m_bAdhoc || pNodeAsset->m_strProvData.empty()) {
 				ZFile::RemoveFile(profile.c_str());
 			} else if (!ZFile::WriteFile(profile.c_str(), pNodeAsset->m_strProvData)) {
 				return false;

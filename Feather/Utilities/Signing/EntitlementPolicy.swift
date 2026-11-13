@@ -2,6 +2,13 @@ import Foundation
 
 /// Provisioning is an allowlist; a profile's wildcard is never an app identity.
 enum EntitlementPolicy {
+    // These grants are profile-gated even though they lack an Apple namespace.
+    private static let restrictedKeys: Set<String> = [
+        "beta-reports-active", "platform-application", "task_for_pid-allow",
+        "run-unsigned-code", "dynamic-codesigning", "seatbelt-profiles",
+        "inter-app-audio", "multitasking.camera.access", "aps-environment",
+        "get-task-allow", "keychain-access-groups", "com.apple.security.application-groups"
+    ]
     struct Failure: LocalizedError {
         let message: String
         var errorDescription: String? { message }
@@ -103,7 +110,7 @@ enum EntitlementPolicy {
                 } else {
                     warnings.append("\(bundleID): removed unsupported \(key).")
                 }
-            } else if key.hasPrefix("com.apple.developer.") || key.hasPrefix("com.apple.private.") || key == "com.apple.security.application-groups" || key == "aps-environment" || key == "get-task-allow" || key == "keychain-access-groups" {
+            } else if key.hasPrefix("com.apple.developer.") || key.hasPrefix("com.apple.private.") || restrictedKeys.contains(key) {
                 if custom[key] != nil || (key == "get-task-allow" && enableJIT) {
                     throw Failure(message: "\(bundleID): entitlement \(key) needs a provisioning profile with that capability.")
                 }
@@ -125,5 +132,37 @@ enum EntitlementPolicy {
             result["com.apple.application-identifier"] = identity.appID
         }
         return (result, warnings)
+    }
+
+    /// Ad-hoc signing has no provisioning allowlist. Keep each executable's own
+    /// grants, apply custom values to the root only, and repair renamed identities.
+    static func adHoc(bundleID: String, original: [String: Any], custom: [String: Any] = [:],
+                      oldRootID: String, newRootID: String, enableJIT: Bool = false) -> [String: Any] {
+        var values = original.merging(custom) { _, custom in custom }
+        let identifierKeys = ["application-identifier", "com.apple.application-identifier"]
+        for key in identifierKeys {
+            if let identifier = values[key] as? String, let dot = identifier.firstIndex(of: ".") {
+                values[key] = String(identifier[..<dot]) + "." + bundleID
+            }
+        }
+        let appID = (values["application-identifier"] ?? values["com.apple.application-identifier"]) as? String
+        let prefix = appID?.split(separator: ".").first.map(String.init)
+        func rebase(_ value: String) -> String {
+            if let prefix, value == prefix + ".*", let appID { return appID }
+            guard !oldRootID.isEmpty, oldRootID != newRootID else { return value }
+            for scope in [prefix.map { $0 + "." }, "group.", "iCloud."].compactMap({ $0 }) {
+                let old = scope + oldRootID
+                if value == old || value.hasPrefix(old + ".") {
+                    return scope + newRootID + String(value.dropFirst(old.count))
+                }
+            }
+            return value
+        }
+        for key in ["keychain-access-groups", "com.apple.security.application-groups",
+                    "com.apple.developer.icloud-container-identifiers", "com.apple.developer.ubiquity-container-identifiers"] {
+            if let groups = values[key] as? [String] { values[key] = groups.map(rebase) }
+        }
+        if enableJIT { values["get-task-allow"] = true }
+        return values
     }
 }

@@ -3,6 +3,38 @@ import ZsignC
 import OSLog
 
 enum BundleSigningPlan {
+    static func makeAdHoc(app: URL, options: Options, directory: URL) throws -> [String: [String: String]] {
+        let root = try info(app)
+        guard let rootID = root["CFBundleIdentifier"] as? String else { throw SigningFileHandlerError.infoPlistNotFound }
+        var custom: [String: Any] = [:]
+        if let file = options.appEntitlementsFile {
+            guard let values = try PropertyListSerialization.propertyList(from: Data(contentsOf: file), format: nil) as? [String: Any] else {
+                throw EntitlementPolicy.Failure(message: "The custom entitlement file must contain a plist dictionary.")
+            }
+            custom = values
+        }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var settings: [String: [String: String]] = [:]
+        for bundle in try executableBundles(at: app) {
+            let plist = try info(bundle)
+            guard let bundleID = plist["CFBundleIdentifier"] as? String,
+                  let executable = plist["CFBundleExecutable"] as? String,
+                  !executable.contains("/"), executable != ".." else { throw SigningFileHandlerError.infoPlistNotFound }
+            var original: [String: Any] = [:]
+            if options.preserveBundleEntitlements != false,
+               let data = LCGetMachOEntitlements(bundle.appendingPathComponent(executable).path),
+               let values = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] { original = values }
+            let values = EntitlementPolicy.adHoc(bundleID: bundleID, original: original,
+                custom: bundle == app ? custom : [:], oldRootID: options.originalAppIdentifier ?? rootID,
+                newRootID: rootID, enableJIT: options.enableJIT == true)
+            let file = directory.appendingPathComponent(UUID().uuidString + ".plist")
+            try PropertyListSerialization.data(fromPropertyList: values, format: .xml, options: 0).write(to: file, options: .atomic)
+            let path = bundle == app ? "/" : String(bundle.path.dropFirst(app.path.count + 1))
+            settings[path] = ["profile": "", "entitlements": file.path]
+        }
+        return settings
+    }
+
     static func make(app: URL, profileURL: URL, options: Options, directory: URL) throws -> (settings: [String: [String: String]], warnings: [String]) {
         let manager = FileManager.default
         let profiles = try ([profileURL] + (options.additionalProvisioningProfiles ?? [])).map { url -> (URL, [String: Any]) in
@@ -24,16 +56,9 @@ enum BundleSigningPlan {
             custom = values
         }
         try manager.createDirectory(at: directory, withIntermediateDirectories: true)
-        var bundles = [app]
-        if let enumerator = manager.enumerator(at: app, includingPropertiesForKeys: [.isSymbolicLinkKey]) {
-            for case let url as URL in enumerator {
-                if try url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true { enumerator.skipDescendants(); continue }
-                if ["app", "appex"].contains(url.pathExtension) { bundles.append(url) }
-            }
-        }
         var settings: [String: [String: String]] = [:]
         var warnings: [String] = []
-        for bundle in bundles {
+        for bundle in try executableBundles(at: app) {
             let plist = try info(bundle)
             guard let bundleID = plist["CFBundleIdentifier"] as? String,
                   let executable = plist["CFBundleExecutable"] as? String,
@@ -65,6 +90,17 @@ enum BundleSigningPlan {
             settings[path] = ["profile": selected.0.path, "entitlements": file.path]
         }
         return (settings, warnings)
+    }
+
+    private static func executableBundles(at app: URL) throws -> [URL] {
+        var bundles = [app]
+        if let enumerator = FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isSymbolicLinkKey]) {
+            for case let url as URL in enumerator {
+                if try url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true { enumerator.skipDescendants(); continue }
+                if ["app", "appex"].contains(url.pathExtension) { bundles.append(url) }
+            }
+        }
+        return bundles
     }
 
     private static func info(_ bundle: URL) throws -> [String: Any] {

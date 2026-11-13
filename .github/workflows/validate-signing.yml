@@ -27,6 +27,8 @@ jobs:
           "$RUNNER_TEMP/signing-tests"
       - name: Native signing core and local TLS
         run: bash Tests/Signing/native.sh
+      - name: Unsigned IPA validation
+        run: python3 Tests/Signing/test_unsigned_ipa.py
       - name: Swift package adapter
         run: swift build --package-path Zsign
   ios:

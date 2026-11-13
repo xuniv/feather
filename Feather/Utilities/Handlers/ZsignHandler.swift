@@ -61,8 +61,10 @@ final class ZsignHandler {
 	
 	func adhocSign() async throws {
 		// Ad-hoc output is useful for jailbroken/test devices and is not an OTA signature.
-		guard Zsign.sign(appPath: _appUrl.path, entitlementsPath: _options.appEntitlementsFile?.path ?? "",
-			adhoc: true, removeProvision: _options.removeProvisioning) else {
+		let directory = FileManager.default.temporaryDirectory.appendingPathComponent("BundleSigning-" + UUID().uuidString)
+		defer { try? FileManager.default.removeItem(at: directory) }
+		let settings = try BundleSigningPlan.makeAdHoc(app: _appUrl, options: _options, directory: directory)
+		guard Zsign.sign(appPath: _appUrl.path, adhoc: true, removeProvision: true, bundleSettings: settings) else {
 			throw SigningFileHandlerError.signFailed
 		}
 	}

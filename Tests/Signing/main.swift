@@ -47,6 +47,38 @@ let migrated = try EntitlementPolicy.normalize(profile: capabilities, bundleID: 
     oldRootID: "com.original.app", newRootID: "com.example.app")
 assert(migrated.values["aps-environment"] as? String == "development")
 assert(migrated.values["com.apple.security.application-groups"] as? [String] == ["group.com.example.app.shared"])
+let strippedBeta = try EntitlementPolicy.normalize(profile: profile, bundleID: "com.example.app",
+    original: ["beta-reports-active": true, "platform-application": true], oldRootID: "", newRootID: "")
+assert(strippedBeta.values["beta-reports-active"] == nil)
+assert(strippedBeta.values["platform-application"] == nil)
+assert(strippedBeta.warnings.count == 2)
+expectFailure { _ = try EntitlementPolicy.normalize(profile: profile, bundleID: "com.example.app", original: [:],
+    custom: ["beta-reports-active": true], oldRootID: "", newRootID: "") }
+var betaProfile = profile
+var betaAllowed = betaProfile["Entitlements"] as! [String: Any]
+betaAllowed["beta-reports-active"] = true
+betaProfile["Entitlements"] = betaAllowed
+let authorizedBeta = try EntitlementPolicy.normalize(profile: betaProfile, bundleID: "com.example.app",
+    original: ["beta-reports-active": true], oldRootID: "", newRootID: "")
+assert(authorizedBeta.values["beta-reports-active"] as? Bool == true)
+let adHocMain = EntitlementPolicy.adHoc(bundleID: "com.example.new", original: [
+    "application-identifier": "OLDPREFIX1.com.example.old", "main-only": true,
+    "keychain-access-groups": ["OLDPREFIX1.com.example.old.shared"], "platform-application": true
+], custom: ["custom-main": true], oldRootID: "com.example.old", newRootID: "com.example.new")
+let adHocWidget = EntitlementPolicy.adHoc(bundleID: "com.example.new.widget", original: [
+    "application-identifier": "OLDPREFIX1.com.example.old.widget", "widget-only": true,
+    "keychain-access-groups": ["OLDPREFIX1.*"], "com.apple.developer.associated-domains": ["applinks:*.example.org"]
+], oldRootID: "com.example.old", newRootID: "com.example.new", enableJIT: true)
+assert(adHocMain["application-identifier"] as? String == "OLDPREFIX1.com.example.new")
+assert(adHocMain["keychain-access-groups"] as? [String] == ["OLDPREFIX1.com.example.new.shared"])
+assert(adHocMain["platform-application"] as? Bool == true)
+assert(adHocWidget["application-identifier"] as? String == "OLDPREFIX1.com.example.new.widget")
+assert(adHocWidget["keychain-access-groups"] as? [String] == ["OLDPREFIX1.com.example.new.widget"])
+assert(adHocWidget["main-only"] == nil && adHocWidget["custom-main"] == nil)
+assert(adHocWidget["widget-only"] as? Bool == true)
+assert(adHocWidget["get-task-allow"] as? Bool == true)
+assert(adHocWidget["com.apple.developer.associated-domains"] as? [String] == ["applinks:*.example.org"])
+assert(EntitlementPolicy.adHoc(bundleID: "com.example.app", original: [:], oldRootID: "", newRootID: "").isEmpty)
 
 func words(_ values: [UInt32], little: Bool = true) -> Data {
     Data(values.flatMap { value -> [UInt8] in
