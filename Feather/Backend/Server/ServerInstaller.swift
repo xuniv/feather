@@ -43,6 +43,7 @@ class ServerInstaller: Identifiable, ObservableObject {
         guard !metadata.identifier.isEmpty else {
             throw InstallationTransport.Failure(message: "The app is missing its bundle identifier.")
         }
+        let sample = try InstallationPayloadProbe.Sample(file: package)
         let preferred = UserDefaults.standard.string(forKey: "Feather.localInstallHost") ?? InstallationTransport.preferredLocalHost
         let candidates: [String]
         if method.usesLocalCA {
@@ -74,7 +75,7 @@ class ServerInstaller: Identifiable, ObservableObject {
                     case .failed(let error): self?.updateStatus(.broken(error))
                     }
                 }
-            try await checkManifestAndPayload()
+            try await checkManifestAndPayload(sample: sample)
         } catch {
             server.shutdown()
             throw error
@@ -104,7 +105,7 @@ class ServerInstaller: Identifiable, ObservableObject {
         throw InstallationTransport.Failure(message: "Cannot connect to the local installation server (\(candidates.joined(separator: ", "))): \(lastError?.localizedDescription ?? "Unknown error"). Check Local CA Trust in Installation settings, or try Hosted Plist (HTTP).")
     }
 
-    private func checkManifestAndPayload() async throws {
+    private func checkManifestAndPayload(sample: InstallationPayloadProbe.Sample) async throws {
         guard let url = selectedManifest else { return }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 15
@@ -124,25 +125,13 @@ class ServerInstaller: Identifiable, ObservableObject {
         } catch {
             throw InstallationTransport.Failure(message: "\(label) check failed: \(error.localizedDescription)")
         }
-        // The real payload endpoint must be reachable too. HEAD requests do not
-        // start progress, dismiss Safari, or report a completed transfer.
-        let localConfiguration = URLSessionConfiguration.ephemeral
-        localConfiguration.connectionProxyDictionary = [:]
-        localConfiguration.timeoutIntervalForRequest = 8
-        localConfiguration.timeoutIntervalForResource = 10
-        let localSession = URLSession(configuration: localConfiguration)
-        defer { localSession.invalidateAndCancel() }
+        // HEAD has no body: expectedContentLength may be zero/unknown even
+        // when the file exists. Verify one real byte with the same URLSession
+        // client used by the app, without buffering or downloading the IPA.
         do {
-            var request = URLRequest(url: payloadEndpoint, cachePolicy: .reloadIgnoringLocalCacheData)
-            request.httpMethod = "HEAD"
-            request.setValue("1", forHTTPHeaderField: InstallationRequestHandler.preflightHeader)
-            let (_, response) = try await localSession.data(for: request)
-            guard let response = response as? HTTPURLResponse, response.statusCode == 200,
-                  response.expectedContentLength > 0 else {
-                throw InstallationTransport.Failure(message: "The local IPA endpoint is missing or empty.")
-            }
+            try await InstallationPayloadProbe.check(url: payloadEndpoint, sample: sample)
         } catch {
-            throw InstallationTransport.Failure(message: "Local IPA connection check failed: \(error.localizedDescription)")
+            throw InstallationTransport.Failure(message: "Local IPA transfer check failed: \(error.localizedDescription)")
         }
     }
 

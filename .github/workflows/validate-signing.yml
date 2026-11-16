@@ -29,7 +29,7 @@ jobs:
         run: bash Tests/Signing/native.sh
       - name: Installation handoff and hosted manifest encoding
         run: |
-          swiftc Feather/Backend/Server/InstallationTransport.swift Tests/Installation/main.swift -o "$RUNNER_TEMP/installation-tests"
+          swiftc Feather/Backend/Server/InstallationTransport.swift Feather/Backend/Server/InstallationPayloadProbe.swift Tests/Installation/main.swift -o "$RUNNER_TEMP/installation-tests"
           "$RUNNER_TEMP/installation-tests"
       - name: Local installation listeners
         run: bash Tests/Installation/integration.sh

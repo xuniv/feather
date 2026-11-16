@@ -99,8 +99,53 @@ for (host, address) in [("feather.localhost", "127.0.0.1"), ("feather.localhost"
 assert(stages.counts == (5, 10))
 server.shutdown()
 let httpContent = try makeContent(http: true)
-try server.start(port: port, tls: nil, localOnly: false, handler: httpContent.respond)
+try server.start(port: port, tls: nil, localOnly: false) { request in
+    let headers: HTTPHeaders = ["Content-Range": "bytes 0-0/\(bytes.count)"]
+    switch request.url.path {
+    case "/probe-ignored-range": return Response(status: .ok, body: .init(data: bytes))
+    case "/probe-wrong-byte": return Response(status: .partialContent, headers: headers, body: .init(data: Data([255])))
+    case "/probe-too-long": return Response(status: .partialContent, headers: headers, body: .init(data: Data([0, 1])))
+    case "/probe-empty": return Response(status: .partialContent, headers: headers)
+    case "/probe-wrong-size": return Response(status: .partialContent, headers: ["Content-Range": "bytes 0-0/99"], body: .init(data: Data([0])))
+    default: return httpContent.respond(to: request)
+    }
+}
 let httpData = try request(endpoint("127.0.0.1", payloadPath, http: true), ca: false)
 assert(httpData == bytes)
+
+// Exercise the production preflight with Apple's Foundation URLSession, not
+// just curl: this is the client API that rejected valid IPAs in 2.9.3.
+final class ProbeOutcome: @unchecked Sendable {
+    let done = DispatchSemaphore(value: 0)
+    private let lock = NSLock()
+    private var result: Result<Void, Error>?
+    func finish(_ result: Result<Void, Error>) {
+        lock.lock(); self.result = result; lock.unlock()
+        done.signal()
+    }
+    func get() throws {
+        lock.lock(); let result = self.result; lock.unlock()
+        try result!.get()
+    }
+}
+func swiftProbe(_ url: URL, sample: InstallationPayloadProbe.Sample) throws {
+    let outcome = ProbeOutcome()
+    Task.detached {
+        do { try await InstallationPayloadProbe.check(url: url, sample: sample); outcome.finish(.success(())) }
+        catch { outcome.finish(.failure(error)) }
+    }
+    guard outcome.done.wait(timeout: .now() + 20) == .success else { fatalError("URLSession probe timed out") }
+    try outcome.get()
+}
+let sample = try InstallationPayloadProbe.Sample(file: package)
+let beforeProbe = stages.counts
+try swiftProbe(endpoint("127.0.0.1", payloadPath, http: true), sample: sample)
+assert(stages.counts == beforeProbe, "URLSession preflight must not advance installer progress")
+for path in ["/probe-ignored-range", "/probe-wrong-byte", "/probe-too-long", "/probe-empty", "/probe-wrong-size"] {
+    do {
+        try swiftProbe(endpoint("127.0.0.1", path, http: true), sample: sample)
+        fatalError("Invalid payload probe accepted: \(path)")
+    } catch {}
+}
 server.shutdown()
-print("Production manifest/page/IPA routes, preflight and HEAD isolation, confirmation delay, ranged downloads, IPv4/IPv6 TLS and shutdown checks passed")
+print("Production routes, Foundation URLSession one-byte preflight, invalid/oversized responses, HEAD isolation, ranged downloads, IPv4/IPv6 TLS and shutdown checks passed")

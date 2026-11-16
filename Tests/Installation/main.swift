@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 func expectFailure(_ message: String, _ operation: () throws -> Void) {
     do { try operation(); fatalError(message) } catch {}
@@ -78,3 +81,39 @@ assert(InstallationServerMethod(rawValue: 3)!.usesLocalCA)
 assert(InstallationServerMethod.hostedLocalCA.usesHostedManifest)
 assert(!InstallationServerMethod.hostedLocalCA.usesHTTP)
 print("Installation handoff, nested URL/XML encoding, hosted response validation and legacy mode checks passed")
+
+// Body-length metadata is not evidence that the IPA is missing. A ranged GET
+// can legitimately have an unknown expectedContentLength (e.g. chunked data).
+let probeDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+try FileManager.default.createDirectory(at: probeDirectory, withIntermediateDirectories: true)
+defer { try? FileManager.default.removeItem(at: probeDirectory) }
+let probeFile = probeDirectory.appendingPathComponent("sample.ipa")
+try Data([0x50, 0x4b, 3, 4]).write(to: probeFile)
+let sample = try InstallationPayloadProbe.Sample(file: probeFile)
+let probeURL = URL(string: "http://127.0.0.1:4567/sample.ipa")!
+let probeRequest = InstallationPayloadProbe.request(url: probeURL)
+assert(probeRequest.httpMethod == "GET")
+assert(probeRequest.value(forHTTPHeaderField: "Range") == "bytes=0-0")
+assert(probeRequest.value(forHTTPHeaderField: "Accept-Encoding") == "identity")
+assert(probeRequest.value(forHTTPHeaderField: InstallationTransport.preflightHeader) == "1")
+let unknownLength = HTTPURLResponse(url: probeURL, statusCode: 206, httpVersion: "HTTP/1.1", headerFields: ["Content-Range": "bytes 0-0/4"])!
+assert(unknownLength.expectedContentLength <= 0)
+try InstallationPayloadProbe.validateResponse(unknownLength, sample: sample)
+try InstallationPayloadProbe.validateBody(Data([0x50]), sample: sample)
+for status in [200, 204, 404, 500] {
+    expectFailure("Invalid range status accepted") {
+        try InstallationPayloadProbe.validateResponse(HTTPURLResponse(url: probeURL, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Range": "bytes 0-0/4"])!, sample: sample)
+    }
+}
+for range in ["bytes 0-1/4", "bytes 0-0/99", "bytes 0-0/*", "invalid"] {
+    expectFailure("Invalid range accepted") {
+        try InstallationPayloadProbe.validateResponse(HTTPURLResponse(url: probeURL, statusCode: 206, httpVersion: "HTTP/1.1", headerFields: ["Content-Range": range])!, sample: sample)
+    }
+}
+for body in [Data(), Data([0]), Data([0x50, 0x4b])] {
+    expectFailure("Invalid probe bytes accepted") { try InstallationPayloadProbe.validateBody(body, sample: sample) }
+}
+try Data().write(to: probeFile)
+expectFailure("Empty IPA accepted") { _ = try InstallationPayloadProbe.Sample(file: probeFile) }
+expectFailure("Missing IPA accepted") { _ = try InstallationPayloadProbe.Sample(file: probeDirectory.appendingPathComponent("missing.ipa")) }
+print("One-byte IPA probe checks passed, including unknown response-body length")

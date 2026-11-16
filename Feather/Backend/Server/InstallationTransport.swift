@@ -21,6 +21,7 @@ enum InstallationServerMethod: Int, CaseIterable {
 
 /// Keep each URL as a URL until its query value is encoded by the next layer.
 enum InstallationTransport {
+    static let preflightHeader = "X-Feather-Preflight"
     static let defaultHostedServer = "https://api.palera.in/genPlist"
     static let preferredLocalHost = "feather.localhost"
     static let localHosts = [preferredLocalHost, "localhost", "127.0.0.1"]

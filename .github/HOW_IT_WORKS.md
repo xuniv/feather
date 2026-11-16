@@ -6,7 +6,7 @@ To start off, we need a validly signed IPA. We can achieve this with Zsign, usin
 
 #### Install (Server)
 
-Feather packages the signed app and starts a local server only for server installation. Export and pairing installation do not start it or require a CA. Before reporting Ready, Feather checks the actual local connection with system TLS trust, fetches and validates the selected manifest in every mode, and probes the actual IPA endpoint with HEAD. These preflight/HEAD requests do not start installation progress or dismiss Safari.
+Feather packages the signed app and starts a local server only for server installation. Export and pairing installation do not start it or require a CA. Before reporting Ready, Feather checks the actual local connection with system TLS trust, fetches and validates the selected manifest in every mode, and reads the generated file size/first byte and verifies a one-byte ranged GET from the actual IPA endpoint. The probe checks Content-Range and returned bytes, never HEAD expectedContentLength. These preflight/HEAD requests do not start installation progress or dismiss Safari.
 
 Installation opens a local page in Safari with an `itms-services://?action=download-manifest&url=...` link. The page tries automatic handoff and provides an Install link if a user gesture is required. This route is used in all server modes, including Local CA, to accommodate iOS restrictions on launching installation from the app. The Safari sheet closes only when an IPA GET transfer starts. The installation activity is retained across Safari and system confirmation presentation changes; covering the preview is not treated as cancellation.
 

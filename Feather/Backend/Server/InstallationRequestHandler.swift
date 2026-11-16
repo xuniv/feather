@@ -7,7 +7,7 @@ final class InstallationRequestHandler {
         case manifest, payload, delivered, failed(Error)
     }
 
-    static let preflightHeader = "X-Feather-Preflight"
+    static let preflightHeader = InstallationTransport.preflightHeader
     let manifestData: Data
     let healthPath: String
     private let sessionID: UUID
