@@ -83,17 +83,21 @@ enum InstallationTransport {
         var components = URLComponents()
         components.scheme = "itms-services"
         components.host = "" // Preserve the required itms-services://? form.
-        components.queryItems = [URLQueryItem(name: "action", value: "download-manifest"),
-                                 URLQueryItem(name: "url", value: manifest.absoluteString)]
-        components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        // Encode the entire nested URL, including the scheme and nonstandard
+        // loopback port. Do not rely on an install client's query parser treating
+        // literal ':', '/' and '?' as part of a single URL value.
+        let unreserved = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        let encoded = manifest.absoluteString.addingPercentEncoding(withAllowedCharacters: unreserved)!
+        components.percentEncodedQuery = "action=download-manifest&url=" + encoded
         return components.url!
     }
 
-    static func manifest(metadata: Metadata, payload: URL, smallIcon: URL, largeIcon: URL) -> [String: Any] {
+    static func manifest(metadata: Metadata, payload: URL) -> [String: Any] {
         ["items": [[
-            "assets": [["kind": "software-package", "url": payload.absoluteString],
-                       ["kind": "display-image", "url": smallIcon.absoluteString],
-                       ["kind": "full-size-image", "url": largeIcon.absoluteString]],
+            // Match the working hosted plist format. Optional icon downloads
+            // involve additional installer clients and are unnecessary: the IPA
+            // already contains its app icons.
+            "assets": [["kind": "software-package", "url": payload.absoluteString]],
             "metadata": ["bundle-identifier": metadata.identifier, "bundle-version": metadata.version,
                          "kind": "software", "title": metadata.name]
         ]]]

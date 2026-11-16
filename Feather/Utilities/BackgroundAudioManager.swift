@@ -12,26 +12,31 @@ import AVFoundation
 class BackgroundAudioManager {
 	static let shared = BackgroundAudioManager()
 	private let _engine = AVAudioEngine()
+	private var _silence: AVAudioSourceNode?
 	
 
 	private init() {}
 	
 	func start() {
+		guard !_engine.isRunning else { return }
 		do {
 			let session = AVAudioSession.sharedInstance()
 			
 			try session.setCategory(.playback, options: [.mixWithOthers])
 			try session.setActive(true)
-			let silence = AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus in
-				let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
-				for buffer in ablPointer {
-					memset(buffer.mData, 0, Int(buffer.mDataByteSize))
+			if _silence == nil {
+				let silence = AVAudioSourceNode { _, _, _, audioBufferList -> OSStatus in
+					let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
+					for buffer in ablPointer {
+						memset(buffer.mData, 0, Int(buffer.mDataByteSize))
+					}
+					return noErr
 				}
-				return noErr
-			}
 			
-			_engine.attach(silence)
-			_engine.connect(silence, to: _engine.mainMixerNode, format: nil)
+				_engine.attach(silence)
+				_engine.connect(silence, to: _engine.mainMixerNode, format: nil)
+				_silence = silence
+			}
 			try _engine.start()
 		} catch {
 			print("failed to start engine:", error)

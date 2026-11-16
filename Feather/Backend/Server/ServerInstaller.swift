@@ -21,10 +21,8 @@ class ServerInstaller: Identifiable, ObservableObject {
     let ipFix: Bool
     private(set) var host = "127.0.0.1"
     private(set) var selectedManifest: URL?
-    private var packageUrl: URL?
     private let server = InstallationHTTPServer()
-    private let smallIcon: Data
-    private let largeIcon: Data
+    private var content: InstallationRequestHandler?
     @ObservedObject var viewModel: InstallerStatusViewModel
 
     // Export and pairing installation must not require an HTTPS identity.
@@ -39,15 +37,12 @@ class ServerInstaller: Identifiable, ObservableObject {
         metadata = .init(identifier: info?["CFBundleIdentifier"] as? String ?? app.identifier ?? "",
                          name: app.name ?? "App",
                          version: info?["CFBundleVersion"] as? String ?? app.version ?? "1")
-        smallIcon = Self.createIcon(57)
-        largeIcon = Self.createIcon(512)
     }
 
     func start(package: URL) async throws {
         guard !metadata.identifier.isEmpty else {
             throw InstallationTransport.Failure(message: "The app is missing its bundle identifier.")
         }
-        packageUrl = package
         let preferred = UserDefaults.standard.string(forKey: "Feather.localInstallHost") ?? InstallationTransport.preferredLocalHost
         let candidates: [String]
         if method.usesLocalCA {
@@ -69,7 +64,17 @@ class ServerInstaller: Identifiable, ObservableObject {
             selectedManifest = try method.usesHostedManifest
                 ? InstallationTransport.hostedManifest(server: hostedServer, metadata: metadata, payload: payloadEndpoint)
                 : plistEndpoint
-            if method.usesHostedManifest { try await checkHostedManifest() }
+            guard let selectedManifest else { throw InstallationTransport.Failure(message: "Missing installation manifest URL.") }
+            content = try InstallationRequestHandler(sessionID: id, metadata: metadata, manifest: plistEndpoint,
+                payload: payloadEndpoint, selectedManifest: selectedManifest, package: package) { [weak self] stage in
+                    switch stage {
+                    case .manifest: self?.updateStatus(.sendingManifest)
+                    case .payload: self?.updateStatus(.sendingPayload)
+                    case .delivered: self?.updateStatus(.installing)
+                    case .failed(let error): self?.updateStatus(.broken(error))
+                    }
+                }
+            try await checkManifestAndPayload()
         } catch {
             server.shutdown()
             throw error
@@ -99,51 +104,54 @@ class ServerInstaller: Identifiable, ObservableObject {
         throw InstallationTransport.Failure(message: "Cannot connect to the local installation server (\(candidates.joined(separator: ", "))): \(lastError?.localizedDescription ?? "Unknown error"). Check Local CA Trust in Installation settings, or try Hosted Plist (HTTP).")
     }
 
-    private func checkHostedManifest() async throws {
+    private func checkManifestAndPayload() async throws {
         guard let url = selectedManifest else { return }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 15
         configuration.timeoutIntervalForResource = 20
+        if !method.usesHostedManifest { configuration.connectionProxyDictionary = [:] }
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
+        let label = method.usesHostedManifest ? "Hosted manifest" : "Local HTTPS manifest"
         do {
-            let (data, response) = try await session.data(from: url)
+            var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+            request.setValue("1", forHTTPHeaderField: InstallationRequestHandler.preflightHeader)
+            let (data, response) = try await session.data(for: request)
             guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-                throw InstallationTransport.Failure(message: "The hosted plist server returned HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0).")
+                throw InstallationTransport.Failure(message: "HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0).")
             }
             try InstallationTransport.validateManifest(data, metadata: metadata, payload: payloadEndpoint)
         } catch {
-            throw InstallationTransport.Failure(message: "Hosted plist check failed: \(error.localizedDescription) Try another HTTPS plist server in Installation settings, or use Local CA (Offline).")
+            throw InstallationTransport.Failure(message: "\(label) check failed: \(error.localizedDescription)")
+        }
+        // The real payload endpoint must be reachable too. HEAD requests do not
+        // start progress, dismiss Safari, or report a completed transfer.
+        let localConfiguration = URLSessionConfiguration.ephemeral
+        localConfiguration.connectionProxyDictionary = [:]
+        localConfiguration.timeoutIntervalForRequest = 8
+        localConfiguration.timeoutIntervalForResource = 10
+        let localSession = URLSession(configuration: localConfiguration)
+        defer { localSession.invalidateAndCancel() }
+        do {
+            var request = URLRequest(url: payloadEndpoint, cachePolicy: .reloadIgnoringLocalCacheData)
+            request.httpMethod = "HEAD"
+            request.setValue("1", forHTTPHeaderField: InstallationRequestHandler.preflightHeader)
+            let (_, response) = try await localSession.data(for: request)
+            guard let response = response as? HTTPURLResponse, response.statusCode == 200,
+                  response.expectedContentLength > 0 else {
+                throw InstallationTransport.Failure(message: "The local IPA endpoint is missing or empty.")
+            }
+        } catch {
+            throw InstallationTransport.Failure(message: "Local IPA connection check failed: \(error.localizedDescription)")
         }
     }
 
     private func respond(to request: Request) -> Response {
-        switch request.url.path {
-        case "/\(id).health":
+        // Health is available while the final hostname is still being selected.
+        if request.url.path == "/\(id).health" {
             return Response(status: .ok, headers: ["Cache-Control": "no-store"], body: .init(string: id.uuidString))
-        case plistEndpoint.path:
-            updateStatus(.sendingManifest)
-            return Response(status: .ok, headers: ["Content-Type": "application/xml", "Cache-Control": "no-store"], body: .init(data: installManifestData))
-        case displayImageSmallEndpoint.path:
-            return Response(status: .ok, headers: ["Content-Type": "image/png"], body: .init(data: smallIcon))
-        case displayImageLargeEndpoint.path:
-            return Response(status: .ok, headers: ["Content-Type": "image/png"], body: .init(data: largeIcon))
-        case payloadEndpoint.path:
-            guard let packageUrl else { return Response(status: .notFound) }
-            updateStatus(.sendingPayload)
-            return request.fileio.streamFile(at: packageUrl.path) { result in
-                switch result {
-                case .success: self.updateStatus(.installing)
-                case .failure(let error): self.updateStatus(.broken(error))
-                }
-            }
-        case "/install":
-            guard let selectedManifest else { return Response(status: .serviceUnavailable) }
-            let html = InstallationTransport.handoffHTML(installationURL: InstallationTransport.installationURL(manifest: selectedManifest))
-            return Response(status: .ok, headers: ["Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store"], body: .init(string: html))
-        default:
-            return Response(status: .notFound)
         }
+        return content?.respond(to: request) ?? Response(status: .serviceUnavailable)
     }
 
     private func updateStatus(_ status: InstallerStatusViewModel.InstallerStatus) {

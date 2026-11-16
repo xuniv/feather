@@ -18,6 +18,7 @@ struct InstallPreviewView: View {
 	@AppStorage("Feather.installationMethod") private var _installationMethod: Int = 0
 	@State private var _isWebviewPresenting = false
 	@State private var _hasStarted = false
+	@StateObject private var _activity = InstallationActivity()
 	@State private var progressTask: Task<Void, Never>?
 	
 	var app: AppInfoPresentable
@@ -74,33 +75,26 @@ struct InstallPreviewView: View {
 					}
 				}
 				
-				switch newStatus {
-				case .completed, .broken(_):
-					progressTask?.cancel()
-					progressTask = nil
-					#if !targetEnvironment(macCatalyst)
-					BackgroundAudioManager.shared.stop()
-					#endif
-				default:
-					break
-				}
 			}
+            switch newStatus {
+            case .completed, .broken(_):
+                progressTask?.cancel()
+                progressTask = nil
+                _activity.stop()
+            default:
+                break
+            }
 		}
 		.onAppear(perform: _install)
 		
-		#if !targetEnvironment(macCatalyst)
-		.onAppear {
-			BackgroundAudioManager.shared.start()
-		}
-		#endif
-		
 		.onDisappear {
-			progressTask?.cancel()
-			progressTask = nil
-			
-			#if !targetEnvironment(macCatalyst)
-			BackgroundAudioManager.shared.stop()
-			#endif
+			// Safari and the system confirmation can cover this view while the
+			// installer still needs its local server. Covering is not cancellation.
+			if !_isWebviewPresenting {
+				progressTask?.cancel()
+				progressTask = nil
+				_activity.stop()
+			}
 		}
 	}
 	
@@ -116,7 +110,7 @@ struct InstallPreviewView: View {
 	@ViewBuilder
 	private func _button() -> some View {
 		ZStack {
-			if case .ready = viewModel.status, !isSharing, _installationMethod == 0 {
+			if canRetryHandoff, !isSharing, _installationMethod == 0 {
 				Button { _isWebviewPresenting = true } label: {
 					NBButton("Install", systemImage: "arrow.down.app", style: .text)
 				}
@@ -146,6 +140,7 @@ struct InstallPreviewView: View {
 			)
 			return
 		}
+		if !isSharing { _activity.start(retaining: installer) }
 				
 		Task.detached {
 			do {
@@ -206,7 +201,14 @@ struct InstallPreviewView: View {
 			}
 		}
 	}
-	
+
+	private var canRetryHandoff: Bool {
+		switch viewModel.status {
+		case .ready, .sendingManifest: true
+		default: false
+		}
+	}
+
 	private func startInstallProgressPolling(
 		bundleID: String,
 		viewModel: InstallerStatusViewModel

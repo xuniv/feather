@@ -14,5 +14,5 @@ openssl x509 -inform DER -in "$task_tmp/authority.der" -out "$task_tmp/authority
 mkdir -p "$task_tmp/package/Sources"
 cp Tests/Installation/Integration/Package.swift "$task_tmp/package/Package.swift"
 cp Feather.xcworkspace/xcshareddata/swiftpm/Package.resolved "$task_tmp/package/Package.resolved"
-cp Tests/Installation/Integration/main.swift Feather/Backend/Server/InstallationHTTPServer.swift Feather/Backend/Server/InstallationTransport.swift "$task_tmp/package/Sources/"
+cp Tests/Installation/Integration/main.swift Feather/Backend/Server/InstallationHTTPServer.swift Feather/Backend/Server/InstallationTransport.swift Feather/Backend/Server/InstallationRequestHandler.swift "$task_tmp/package/Sources/"
 swift run --jobs 4 --package-path "$task_tmp/package" InstallationIntegration "$task_tmp"

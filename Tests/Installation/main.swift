@@ -12,7 +12,7 @@ assert(InstallationTransport.compatibleLocalHosts(preferred: "external.example.o
 let payload = InstallationTransport.endpoint(host: "feather.localhost", port: 4567, path: "/test +&.ipa", http: false)
 let hosted = try InstallationTransport.hostedManifest(server: "https://example.org/genPlist?custom=a%2Bb&name=stale", metadata: metadata, payload: payload)
 let handoff = InstallationTransport.installationURL(manifest: hosted)
-assert(handoff.absoluteString.hasPrefix("itms-services://?action=download-manifest&url="))
+assert(handoff.absoluteString.hasPrefix("itms-services://?action=download-manifest&url=https%3A%2F%2F"))
 let outer = URLComponents(url: handoff, resolvingAgainstBaseURL: false)!.queryItems!
 assert(outer.first { $0.name == "url" }!.value == hosted.absoluteString)
 let fields = URLComponents(url: hosted, resolvingAgainstBaseURL: false)!.queryItems!
@@ -28,20 +28,23 @@ let values = Dictionary(uniqueKeysWithValues: fields.map { ($0.name, $0.value!) 
 let hostedXML = """
 <?xml version="1.0"?><plist version="1.0"><dict><key>items</key><array><dict>
 <key>assets</key><array><dict><key>kind</key><string>software-package</string><key>url</key><string>\(values["fetchurl"]!)</string></dict></array>
-<key>metadata</key><dict><key>bundle-identifier</key><string>\(values["bundleid"]!)</string><key>bundle-version</key><string>\(values["version"]!)</string><key>title</key><string>\(values["name"]!)</string></dict>
+<key>metadata</key><dict><key>kind</key><string>software</string><key>bundle-identifier</key><string>\(values["bundleid"]!)</string><key>bundle-version</key><string>\(values["version"]!)</string><key>title</key><string>\(values["name"]!)</string></dict>
 </dict></array></dict></plist>
 """
 let hostedData = Data(hostedXML.utf8)
 try InstallationTransport.validateManifest(hostedData, metadata: metadata, payload: payload)
 let parsed = try PropertyListSerialization.propertyList(from: hostedData, format: nil) as! [String: Any]
+let localManifest = InstallationTransport.manifest(metadata: metadata, payload: payload)
+assert(NSDictionary(dictionary: localManifest).isEqual(to: parsed))
+let assets = ((localManifest["items"] as! [[String: Any]])[0]["assets"] as! [[String: String]])
+assert(assets.count == 1 && assets[0]["kind"] == "software-package")
 let parsedMetadata = (parsed["items"] as! [[String: Any]])[0]["metadata"] as! [String: String]
 assert(parsedMetadata["title"] == metadata.name)
 
 for host in InstallationTransport.localHosts {
     for http in [false, true] {
         let package = InstallationTransport.endpoint(host: host, port: 5678, path: "/test.ipa", http: http)
-        let icon = InstallationTransport.endpoint(host: host, port: 5678, path: "/icon.png", http: http)
-        let manifest = InstallationTransport.manifest(metadata: metadata, payload: package, smallIcon: icon, largeIcon: icon)
+        let manifest = InstallationTransport.manifest(metadata: metadata, payload: package)
         let data = try PropertyListSerialization.data(fromPropertyList: manifest, format: .xml, options: 0)
         try InstallationTransport.validateManifest(data, metadata: metadata, payload: package)
         let link = InstallationTransport.installationURL(manifest: package)
