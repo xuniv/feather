@@ -28,4 +28,9 @@ An existing trusted 2.9.1 CA is preserved: its certificate already covers `local
 - Once the connection was established we need to created a staging directory to `/PublicStaging/` and upload our IPA there.
 - Then, using our connection to `AFC` we can command it to install that IPA directly. Similar to `ideviceinstaller`, but fully on your phone.
 
-Due to how it works right now we need both a VPN and a lockdownd pairing file, this means you will need a computer for its initial setup. Though, if you don't want to do these you can just use the server way of installing instead (but at a cost of less reliability). 
+Due to how it works right now we need both a VPN and a lockdownd pairing file, this means you will need a computer for its initial setup. Though, if you don't want to do these you can just use the server way of installing instead (but at a cost of less reliability).
+#### Original IPA installation
+
+The separate **Original IPA** tab accepts IPA files from ipatool or other tools. It reads only one bounded main-app Info.plist (up to 1 MiB), copies the archive as an opaque file, and passes that same file to the existing server/pairing installer. It does not run ArchiveHandler's move/archive steps or the signing/patching pipeline. Nested signatures, SC_Info/SINF records and encrypted executables remain byte-for-byte intact. OTA metadata uses the original CFBundleVersion. iOS still requires valid original signatures and the necessary App Store licenses; this workflow does not decrypt or authorize packages.
+
+Imports are separate from the signing Library, capped at 8 GiB total, and expire after 24 hours or restart. A selected installation retains its file until the installation sheet closes. English and Korean UI text explain the original-package path. See [fork maintenance](FORK_MAINTENANCE.md) for public fork versions and future upstream merges.

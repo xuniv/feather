@@ -13,11 +13,12 @@ spec.loader.exec_module(packaging)
 
 
 class UnsignedIPATests(unittest.TestCase):
-    def fixture(self, root, extra=None, signature=False):
+    def fixture(self, root, extra=None, signature=False, fork=None):
         output = Path(root) / 'test.ipa'
         info = {'CFBundleIdentifier': 'com.example.fixture', 'CFBundleVersion': '2.9.1',
                 'CFBundleShortVersionString': '2.9.1', 'CFBundleExecutable': 'Executable',
                 'CFBundleSupportedPlatforms': ['iPhoneOS']}
+        info.update(fork or {})
         binary = struct.pack('<8I', 0xfeedfacf, 0x0100000c, 0, 2, 1 if signature else 0, 16 if signature else 0, 0, 0)
         if signature:
             binary += struct.pack('<4I', 0x1d, 16, 48, 12) + struct.pack('>3I', 0xfade0cc0, 12, 0)
@@ -34,6 +35,17 @@ class UnsignedIPATests(unittest.TestCase):
             self.assertEqual(packaging.verify(output, '2.9.1')['unsigned_macho_files'], 1)
             with self.assertRaises(ValueError):
                 packaging.verify(output, '2.9.0')
+
+    def test_public_fork_version_is_distinct_from_numeric_package_version(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fork = {'FeatherForkVersion': '2.9.0-5', 'FeatherUpstreamVersion': '2.9.0', 'FeatherFixVersion': '5', 'FeatherPackageVersion': '2.9.1'}
+            output = self.fixture(directory, fork=fork)
+            result = packaging.verify(output, '2.9.0-5')
+            self.assertEqual(result['release'], '2.9.0-5')
+            self.assertEqual(result['version'], '2.9.1')
+            with self.assertRaises(ValueError): packaging.verify(output, '2.9.1')
+            fork['FeatherFixVersion'] = '4'
+            with self.assertRaises(ValueError): packaging.verify(self.fixture(directory, fork=fork), '2.9.0-5')
 
     def test_reject_signature_profile_credentials_and_unsafe_paths(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -88,7 +88,12 @@ def verify(ipa, version=None):
         require(info.get('CFBundleSupportedPlatforms') == ['iPhoneOS'], 'Not an iPhoneOS app')
         require(info.get('CFBundleIdentifier') and info.get('CFBundleVersion'), 'Missing app identity')
         if version:
-            require(info.get('CFBundleShortVersionString') == version, 'Release version mismatch')
+            public = info.get('FeatherForkVersion', info.get('CFBundleShortVersionString'))
+            require(public == version, 'Release version mismatch')
+            if 'FeatherForkVersion' in info:
+                require(public == str(info.get('FeatherUpstreamVersion')) + '-' + str(info.get('FeatherFixVersion')), 'Fork version mismatch')
+                package = info.get('FeatherPackageVersion')
+                require(package == info.get('CFBundleShortVersionString') == info.get('CFBundleVersion'), 'Numeric package version mismatch')
         executable = info.get('CFBundleExecutable', '')
         require(executable and '/' not in executable and executable != '..', 'Invalid executable name')
         main = architectures(archive.read(root + executable))
@@ -107,7 +112,7 @@ def verify(ipa, version=None):
             binaries += 1
         require(archive.testzip() is None, 'Corrupt IPA archive')
         return {'identifier': info['CFBundleIdentifier'], 'version': info['CFBundleShortVersionString'],
-                'build': info['CFBundleVersion'], 'unsigned_macho_files': binaries}
+                'build': info['CFBundleVersion'], 'release': info.get('FeatherForkVersion', info['CFBundleShortVersionString']), 'unsigned_macho_files': binaries}
 
 
 def prepare(app, output, version=None):

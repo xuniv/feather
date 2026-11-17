@@ -27,16 +27,21 @@ class ServerInstaller: Identifiable, ObservableObject {
 
     // Export and pairing installation must not require an HTTPS identity.
     // Starting the server is deferred to start(package:) so failures reach the UI.
-    init(app: AppInfoPresentable, viewModel: InstallerStatusViewModel) {
+    convenience init(app: AppInfoPresentable, viewModel: InstallerStatusViewModel) {
+        let info = Storage.shared.getAppDirectory(for: app).flatMap { Bundle(url: $0)?.infoDictionary }
+        let metadata = InstallationTransport.Metadata(identifier: info?["CFBundleIdentifier"] as? String ?? app.identifier ?? "",
+                         name: app.name ?? "App",
+                         version: info?["CFBundleVersion"] as? String ?? app.version ?? "1")
+        self.init(metadata: metadata, viewModel: viewModel)
+    }
+
+    init(metadata: InstallationTransport.Metadata, viewModel: InstallerStatusViewModel) {
         self.viewModel = viewModel
+        self.metadata = metadata
         let defaults = UserDefaults.standard
         method = InstallationServerMethod(rawValue: defaults.integer(forKey: "Feather.serverMethod")) ?? .localCA
         hostedServer = defaults.string(forKey: "Feather.hostedPlistServer") ?? InstallationTransport.defaultHostedServer
         ipFix = defaults.bool(forKey: "Feather.ipFix")
-        let info = Storage.shared.getAppDirectory(for: app).flatMap { Bundle(url: $0)?.infoDictionary }
-        metadata = .init(identifier: info?["CFBundleIdentifier"] as? String ?? app.identifier ?? "",
-                         name: app.name ?? "App",
-                         version: info?["CFBundleVersion"] as? String ?? app.version ?? "1")
     }
 
     func start(package: URL) async throws {

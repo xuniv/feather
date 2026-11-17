@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>FeatherPackageVersion</key>
+    <string>$(FEATHER_PROJECT_VERSION)</string>
+    <key>FeatherForkVersion</key>
+    <string>$(FEATHER_RELEASE_VERSION)</string>
+    <key>FeatherUpstreamVersion</key>
+    <string>$(FEATHER_UPSTREAM_VERSION)</string>
+    <key>FeatherFixVersion</key>
+    <string>$(FEATHER_FIX_VERSION)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).userTask.*</string>

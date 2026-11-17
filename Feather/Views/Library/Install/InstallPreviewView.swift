@@ -22,6 +22,7 @@ struct InstallPreviewView: View {
 	@State private var progressTask: Task<Void, Never>?
 	
 	var app: AppInfoPresentable
+	private var original: OriginalIPAStore.Item? = nil
 	@StateObject var viewModel: InstallerStatusViewModel
 	@StateObject var installer: ServerInstaller
 	
@@ -35,6 +36,17 @@ struct InstallPreviewView: View {
 		self._installer = StateObject(wrappedValue: ServerInstaller(app: app, viewModel: viewModel))
 	}
 	
+    init(original: OriginalIPAStore.Item) {
+        self.app = original
+        self.original = original
+        self.isSharing = false
+        let model = InstallerStatusViewModel(isIdevice: UserDefaults.standard.integer(forKey: "Feather.installationMethod") == 1)
+        self._viewModel = StateObject(wrappedValue: model)
+        let metadata = InstallationTransport.Metadata(identifier: original.metadata.identifier,
+            name: original.metadata.name, version: original.metadata.build)
+        self._installer = StateObject(wrappedValue: ServerInstaller(metadata: metadata, viewModel: model))
+    }
+
 	// MARK: Body
 	var body: some View {
 		let cornerRadius = {
@@ -144,10 +156,17 @@ struct InstallPreviewView: View {
 				
 		Task.detached {
 			do {
-				let handler = await ArchiveHandler(app: app, viewModel: viewModel)
-				try await handler.move()
-				
-				let packageUrl = try await handler.archive()
+                let handler = await ArchiveHandler(app: app, viewModel: viewModel)
+                let packageUrl: URL
+                if let original = await original {
+                    // Preserve the entire ZIP, including its App Store signature,
+                    // SC_Info/SINF license records and all nested bundles.
+                    packageUrl = original.url
+                    await MainActor.run { viewModel.packageProgress = 1 }
+                } else {
+                    try await handler.move()
+                    packageUrl = try await handler.archive()
+                }
 				
 				if await !isSharing {
 					if await _installationMethod == 0 {

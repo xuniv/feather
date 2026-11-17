@@ -1,6 +1,91 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Install the original IPA, including DRM-protected apps, without resigning or modifying it. A valid original signature and any required App Store license are needed. This does not decrypt apps or acquire licenses." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install the original IPA, including DRM-protected apps, without resigning or modifying it. A valid original signature and any required App Store license are needed. This does not decrypt apps or acquire licenses."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DRM으로 보호된 앱을 포함한 원본 IPA를 재서명하거나 수정하지 않고 설치합니다. 유효한 원본 서명과 필요한 App Store 라이선스가 있어야 합니다. 앱을 복호화하거나 라이선스를 발급하지 않습니다."
+          }
+        }
+      }
+    },
+    "Import an IPA from ipatool or another tool. Original files are stored separately for up to 24 hours or until Feather restarts, with an 8 GiB total limit." : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import an IPA from ipatool or another tool. Original files are stored separately for up to 24 hours or until Feather restarts, with an 8 GiB total limit."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ipatool 등의 도구로 받은 IPA를 가져옵니다. 원본 파일은 별도로 보관되며 24시간이 지나거나 Feather를 다시 시작하면 삭제됩니다. 전체 보관 용량은 8 GiB입니다."
+          }
+        }
+      }
+    },
+    "Importing IPA…" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importing IPA…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IPA 가져오는 중…"
+          }
+        }
+      }
+    },
+    "Choose IPA File" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose IPA File"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IPA 파일 선택"
+          }
+        }
+      }
+    },
+    "Original IPA" : {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Original IPA"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원본 IPA"
+          }
+        }
+      }
+    },
     "%lld Apps" : {
       "comment" : "Repository app count",
       "extractionState" : "manual",

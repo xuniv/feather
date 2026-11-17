@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A51700000000000000000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A51700000000000000000002 /* ZIPFoundation */; };
 		3305BBAC2DB8944200660D45 /* Vapor in Frameworks */ = {isa = PBXBuildFile; productRef = 3305BBAB2DB8944200660D45 /* Vapor */; };
 		330F68FC2DBF7C8600D8C35D /* NimbleExtensions in Frameworks */ = {isa = PBXBuildFile; productRef = 330F68FB2DBF7C8600D8C35D /* NimbleExtensions */; };
 		330F68FE2DBF7C8600D8C35D /* NimbleViews in Frameworks */ = {isa = PBXBuildFile; productRef = 330F68FD2DBF7C8600D8C35D /* NimbleViews */; };
@@ -65,6 +66,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A51700000000000000000001 /* ZIPFoundation in Frameworks */,
 				330F68FE2DBF7C8600D8C35D /* NimbleViews in Frameworks */,
 				330F68FC2DBF7C8600D8C35D /* NimbleExtensions in Frameworks */,
 				3346F5C22DC329A200C7D508 /* Zsign in Frameworks */,
@@ -128,6 +130,7 @@
 			);
 			name = Feather;
 			packageProductDependencies = (
+				A51700000000000000000002 /* ZIPFoundation */,
 				3371F7312DA9ECDD00281AC6 /* Zip */,
 				33CF13382DB5ACFB0021D4C5 /* SWCompression */,
 				3305BBAB2DB8944200660D45 /* Vapor */,
@@ -182,6 +185,7 @@
 			mainGroup = 3379C1B02DA869A1004372DA;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				A51700000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				3371F5152DA91FDC00281AC6 /* XCLocalSwiftPackageReference "Zsign" */,
 				3371F6F52DA9EBA500281AC6 /* XCRemoteSwiftPackageReference "Zip" */,
 				33CF13372DB5ACFB0021D4C5 /* XCRemoteSwiftPackageReference "SWCompression" */,
@@ -514,6 +518,11 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+        A51700000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+            isa = XCRemoteSwiftPackageReference;
+            repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+            requirement = {kind = exactVersion; version = 0.9.20;};
+        };
 		3305BBAA2DB8944200660D45 /* XCRemoteSwiftPackageReference "vapor" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/vapor/vapor";
@@ -549,6 +558,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+        A51700000000000000000002 /* ZIPFoundation */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = A51700000000000000000003 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+            productName = ZIPFoundation;
+        };
 		3305BBAB2DB8944200660D45 /* Vapor */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3305BBAA2DB8944200660D45 /* XCRemoteSwiftPackageReference "vapor" */;

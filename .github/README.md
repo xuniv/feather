@@ -1,7 +1,8 @@
-[![GitHub Release](https://img.shields.io/github/v/release/claration/Feather?include_prereleases)](https://github.com/claration/Feather/releases)
-[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/claration/Feather/total)](https://github.com/claration/Feather/releases)
+> This fork displays versions as upstream-revision (currently 2.9.0-5). See [fork maintenance](FORK_MAINTENANCE.md) for numeric package versions and upstream merges.
+
+[![GitHub Release](https://img.shields.io/github/v/release/xuniv/feather?sort=date)](https://github.com/xuniv/feather/releases)
+[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/xuniv/feather/total)](https://github.com/xuniv/feather/releases)
 [![GitHub License](https://img.shields.io/github/license/claration/Feather?color=%23C96FAD)](https://github.com/claration/Feather/blob/main/LICENSE)
-[![Sponsor Me](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/khcrysalis)
 
 <div align="center">
 
@@ -30,7 +31,7 @@ Sideloading app meant for developer certificates.
 
 ## Download
 
-Visit [releases](https://github.com/claration/Feather/releases) and get the latest `.ipa`.
+Visit [releases](https://github.com/xuniv/feather/releases) and get the latest `.ipa`.
 
 <a href="https://celloserenity.github.io/altdirect/?url=https://raw.githubusercontent.com/claration/Feather/refs/heads/main/app-repo.json" target="_blank">
    <img src="https://github.com/CelloSerenity/altdirect/blob/main/assets/png/AltSource_Blue.png?raw=true" alt="Add AltSource" width="200">
@@ -46,13 +47,6 @@ Feather now has translation support, all localizations are located in `Feather/R
 To add a new language, open Xcode and use the interface to add/contribute to languages.
 
 To properly contribute and test potentially test localizations, you can head over to the [contributing guide](./CONTRIBUTING.md).
-
-## Sponsors
-
-| Thanks to all my [sponsors](https://github.com/sponsors/claration)!! |
-|:--------------------------------------------------------------------:|
-| <img src="https://sponsors.claration.dev/sponsors.png">              |
-| _**"samara is cute" - Vendicated**_                                  |
 
 ## Acknowledgements
 
