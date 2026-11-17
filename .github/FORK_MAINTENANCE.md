@@ -13,10 +13,14 @@ For a future upstream update, fetch the public upstream into a separate branch, 
 
 ```sh
 git remote add upstream https://github.com/claration/feather.git # once
-git fetch upstream --tags
+git config remote.upstream.tagOpt --no-tags
+git fetch upstream '+refs/heads/*:refs/remotes/upstream/*' \
+  '+refs/tags/*:refs/tags/upstream/*'
 git switch -c update/upstream main
 git merge <reviewed-upstream-commit>
 ```
+
+Upstream tags stay under `upstream/` to avoid collisions with the fork’s historical numeric release tags. Merge a reviewed upstream branch/commit or `refs/tags/upstream/<tag>`; do not overwrite published fork tags.
 
 Resolve conflicts without replacing the tested installation transport, original-file import path, entitlement policy or user-owned tweak directory. Update the upstream version to the release actually merged, increment the fork revision and numeric package version, then run the validation workflow. Review and merge before dispatching the unsigned release workflow with `v<FEATHER_RELEASE_VERSION>` (currently `v2.9.0-5`). Do not mark a numeric fork suffix as a GitHub prerelease. The release notes record the numeric package version for automatic AltStore mirroring through its existing validation gate.
 

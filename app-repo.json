@@ -1,8 +1,8 @@
 {
-  "name": "Feather Repository",
+  "name": "Feather Fork Repository",
   "identifier": "kh.crysalis.feather-repo",
   "iconURL": "https://github.com/khcrysalis/Feather/blob/v1.x/iOS/Resources/Icons/Main/Mac@3x.png?raw=true",
-  "website": "https://github.com/khcrysalis/Feather",
+  "website": "https://github.com/xuniv/feather",
   "apps": [
     {
       "name": "Feather",
@@ -13,6 +13,13 @@
       "subtitle": "On-device signing application",
       "tintColor": "848ef9",
       "versions": [
+        {
+          "version": "2.9.5",
+          "date": "2026-11-17T02:00:11Z",
+          "size": 14495452,
+          "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.0-5/Feather-unsigned.ipa",
+          "localizedDescription": "Feather fork 2.9.0-5 (upstream 2.9.0, fork revision 5): Original IPA installation without resigning, donation banners removed. Numeric package version 2.9.5 preserves iOS/AltStore update ordering."
+        },
         {
           "version": "2.9.4",
           "date": "2026-11-16T09:51:06Z",
@@ -51,10 +58,10 @@
         "https://github.com/khcrysalis/Feather/blob/v1.x/Images/Sign.png?raw=true",
         "https://github.com/khcrysalis/Feather/blob/v1.x/Images/Store.png?raw=true"
       ],
-      "version": "2.9.4",
-      "versionDate": "2026-11-16T09:51:06Z",
-      "size": 14383716,
-      "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.4/Feather-unsigned.ipa"
+      "version": "2.9.5",
+      "versionDate": "2026-11-17T02:00:11Z",
+      "size": 14495452,
+      "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.0-5/Feather-unsigned.ipa"
     }
   ],
   "news": [
