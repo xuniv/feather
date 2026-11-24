@@ -100,13 +100,9 @@ extension SigningTweaksView {
 	@ViewBuilder
 	private func _fileActions(tweak: URL) -> some View {
 		Button(role: .destructive) {
-			FileManager.default.deleteStored(tweak) { url in
-				if let index = options.injectionFiles.firstIndex(where: { $0 == url }) {
-					options.injectionFiles.remove(at: index)
-				}
-			}
+			options.injectionFiles.removeAll { $0 == tweak }
 		} label: {
-			Label(.localized("Delete"), systemImage: "trash")
+			Label(.localized("Remove"), systemImage: "minus.circle")
 		}
 	}
 }

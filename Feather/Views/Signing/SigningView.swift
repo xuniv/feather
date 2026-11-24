@@ -62,6 +62,7 @@ struct SigningView: View {
 				options.appName = previous.name
 				options.appIdentifier = previous.identifier
 				options.appVersion = nil
+				if previous.certificate != nil { options.signingOption = .default }
 			} else if previous.identifier != request.app.identifier {
 				options.appIdentifier = previous.identifier
 			}

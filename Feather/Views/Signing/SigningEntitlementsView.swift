@@ -20,10 +20,8 @@ struct SigningEntitlementsView: View {
 			if let ent = bindingValue {
 				Text(ent.lastPathComponent)
 					.swipeActions() {
-						Button(.localized("Delete")) {
-							FileManager.default.deleteStored(ent) { _ in
-								bindingValue = nil
-							}
+						Button(.localized("Remove"), role: .destructive) {
+							bindingValue = nil
 						}
 					}
 			} else {
