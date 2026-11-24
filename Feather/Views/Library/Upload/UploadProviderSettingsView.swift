@@ -22,7 +22,7 @@ struct UploadProviderSettingsView: View {
                                 Text(.localized("Refresh failed. Using the last available list."))
                                     .font(.caption).foregroundStyle(.secondary)
                             } else if let date = source.lastCheck {
-                                Text(.localized("Checked %@", arguments: date.formatted(date: .abbreviated, time: .shortened)))
+                                Text(verbatim: .localized("Checked %@", arguments: date.formatted(date: .abbreviated, time: .shortened)))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
