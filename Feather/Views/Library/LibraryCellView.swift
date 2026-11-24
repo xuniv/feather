@@ -26,8 +26,11 @@ struct LibraryCellView: View {
 	}
 	
 	var app: AppInfoPresentable
+	var importedUpdate: (AppUpdate) -> Imported?
+	var prepareUpdate: (Signed, AppUpdate, Imported?) -> Void
+	var isPreparingUpdate: Bool
 	@Binding var selectedInfoAppPresenting: AnyApp?
-	@Binding var selectedSigningAppPresenting: AnyApp?
+	@Binding var selectedSigningAppPresenting: SigningRequest?
 	@Binding var selectedInstallAppPresenting: AnyApp?
 	@Binding var selectedUploadAppPresenting: AnyApp?
 	@Binding var selectedAppUUIDs: Set<String>
@@ -111,9 +114,20 @@ struct LibraryCellView: View {
 			Button(.localized("Install Current Version"), systemImage: "square.and.arrow.down") {
 				selectedInstallAppPresenting = AnyApp(base: app)
 			}
-			if let update = _signedUpdateConfirmation {
-				Button(.localized("Download Update"), systemImage: "arrow.down.circle") {
-					_startUpdateDownload(update)
+			if let update = _signedUpdateConfirmation, let signed = app as? Signed {
+				if let imported = importedUpdate(update) {
+					Button(.localized("Re-sign & Update"), systemImage: "signature") {
+						prepareUpdate(signed, update, imported)
+					}
+					.disabled(isPreparingUpdate)
+				} else {
+					Button(.localized("Download Update"), systemImage: "arrow.down.circle") {
+						_startUpdateDownload(update)
+					}
+					Button(.localized("Download Update & Re-sign"), systemImage: "signature") {
+						prepareUpdate(signed, update, nil)
+					}
+					.disabled(isPreparingUpdate)
 				}
 			}
 			Button(.localized("Cancel"), role: .cancel) {}
@@ -195,7 +209,7 @@ extension LibraryCellView {
 				selectedUploadAppPresenting = AnyApp(base: app)
 			}
 			Button(.localized("Re-sign"), systemImage: "signature") {
-				selectedSigningAppPresenting = AnyApp(base: app)
+				selectedSigningAppPresenting = SigningRequest(app: app)
 			}
 			Button(.localized("Export"), systemImage: "square.and.arrow.up") {
 				selectedInstallAppPresenting = AnyApp(base: app, archive: true)
@@ -205,7 +219,7 @@ extension LibraryCellView {
 				selectedInstallAppPresenting = AnyApp(base: app)
 			}
 			Button(.localized("Sign"), systemImage: "signature") {
-				selectedSigningAppPresenting = AnyApp(base: app)
+				selectedSigningAppPresenting = SigningRequest(app: app)
 			}
 			Button(.localized("Share"), systemImage: "square.and.arrow.up") {
 				selectedInstallAppPresenting = AnyApp(base: app, archive: true)
@@ -254,7 +268,7 @@ extension LibraryCellView {
 				}
 			} else {
 				Button {
-					selectedSigningAppPresenting = AnyApp(base: app)
+					selectedSigningAppPresenting = SigningRequest(app: app)
 				} label: {
 					FRExpirationPillView(
 						title: .localized("Sign"),

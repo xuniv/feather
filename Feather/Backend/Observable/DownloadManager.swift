@@ -23,13 +23,13 @@ class Download: Identifiable, @unchecked Sendable {
 	}
 	
 	var task: URLSessionDownloadTask?
-	var resumeData: Data?
 	
 	let id: String
 	let url: URL
 	let fileName: String
 	let onlyArchiving: Bool
-	var sourceProvenance: SourceAppProvenance?
+	let sourceProvenance: SourceAppProvenance?
+	var importCompletion: ((Result<String, Error>) -> Void)?
 	
 	init(
 		id: String,
@@ -71,29 +71,30 @@ class DownloadManager: NSObject, ObservableObject {
 	override init() {
 		super.init()
 		let configuration = URLSessionConfiguration.default
-		_session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+		_session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
 	}
 	
 	func startDownload(
 		from url: URL,
 		id: String = UUID().uuidString,
-		sourceProvenance: SourceAppProvenance? = nil
+		sourceProvenance: SourceAppProvenance? = nil,
+		onImport: ((Result<String, Error>) -> Void)? = nil
 	) -> Download {
-		let requestHasSourceProvenance = sourceProvenance != nil
 		if let existingDownload = downloads.first(where: {
-			$0.url == url && ($0.sourceProvenance != nil) == requestHasSourceProvenance
+			!$0.onlyArchiving && $0.url == url && $0.sourceProvenance == sourceProvenance
 		}) {
-			resumeDownload(existingDownload)
+			if let onImport { existingDownload.importCompletion = onImport }
 			return existingDownload
 		}
 		
 		let download = Download(id: id, url: url, sourceProvenance: sourceProvenance)
+		download.importCompletion = onImport
 		
 		let task = _session.downloadTask(with: url)
 		download.task = task
-		task.resume()
 		
 		downloads.append(download)
+		task.resume()
 		
 		#if !targetEnvironment(macCatalyst)
 		if #available(iOS 26.0, *) {
@@ -120,40 +121,9 @@ class DownloadManager: NSObject, ObservableObject {
 		return download
 	}
 	
-	func resumeDownload(_ download: Download) {
-		if let resumeData = download.resumeData {
-			let task = _session.downloadTask(withResumeData: resumeData)
-			download.task = task
-			task.resume()
-			
-			#if !targetEnvironment(macCatalyst)
-			_updateBackgroundAudioState()
-			#endif
-		} else if let url = download.task?.originalRequest?.url {
-			let task = _session.downloadTask(with: url)
-			download.task = task
-			task.resume()
-			
-			#if !targetEnvironment(macCatalyst)
-			_updateBackgroundAudioState()
-			#endif
-		}
-	}
-	
 	func cancelDownload(_ download: Download) {
 		download.task?.cancel()
-		
-		if let index = downloads.firstIndex(where: { $0.id == download.id }) {
-			downloads.remove(at: index)
-			
-			#if !targetEnvironment(macCatalyst)
-			_updateBackgroundAudioState()
-
-			if #available(iOS 26.0, *) {
-				BackgroundTaskManager.shared.stopTask(for: download.id, success: false)
-			}
-			#endif
-		}
+		_finish(download, result: .failure(CancellationError()))
 	}
 	
 	func isManualDownload(_ string: String) -> Bool {
@@ -164,59 +134,59 @@ class DownloadManager: NSObject, ObservableObject {
 		return downloads.first(where: { $0.id == id })
 	}
 	
-	func getDownloadIndex(by id: String) -> Int? {
-		return downloads.firstIndex(where: { $0.id == id })
-	}
-	
 	func getDownloadTask(by task: URLSessionDownloadTask) -> Download? {
 		return downloads.first(where: { $0.task == task })
+	}
+
+	private func _finish(_ download: Download, result: Result<String, Error>) {
+		guard let index = downloads.firstIndex(where: { $0 === download }) else { return }
+		downloads.remove(at: index)
+		#if !targetEnvironment(macCatalyst)
+		if #available(iOS 26.0, *) {
+			BackgroundTaskManager.shared.stopTask(for: download.id, success: (try? result.get()) != nil)
+		}
+		_updateBackgroundAudioState()
+		#endif
+		let completion = download.importCompletion
+		download.importCompletion = nil
+		completion?(result)
 	}
 }
 
 extension DownloadManager: URLSessionDownloadDelegate {
 	
-	func handlePachageFile(url: URL, dl: Download) throws {
-		FR.handlePackageFile(url, download: dl) { err in
-			if err != nil {
+	func importPackageFile(at url: URL, for download: Download, cleanupDirectory: URL? = nil) {
+		FR.handlePackageFile(url, download: download) { result in
+			if let cleanupDirectory { try? FileManager.default.removeItem(at: cleanupDirectory) }
+			if case .failure = result {
 				let generator = UINotificationFeedbackGenerator()
 				generator.notificationOccurred(.error)
 			}
-			
-			DispatchQueue.main.async {
-				if let index = DownloadManager.shared.getDownloadIndex(by: dl.id) {
-					DownloadManager.shared.downloads.remove(at: index)
-					
-					#if !targetEnvironment(macCatalyst)
-					if #available(iOS 26.0, *) {
-						BackgroundTaskManager.shared.updateProgress(for: dl.id, progress: 1.0)
-					}
-					
-					self._updateBackgroundAudioState()
-					#endif
-				}
-			}
+			self._finish(download, result: result)
 		}
 	}
 	
 	func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
 		guard let download = getDownloadTask(by: downloadTask) else { return }
 		
-		let tempDirectory = FileManager.default.temporaryDirectory
-		let customTempDir = tempDirectory.appendingPathComponent("FeatherDownloads", isDirectory: true)
+		let files = FileManager.default
+		let directory = files.temporaryDirectory.appendingPathComponent("FeatherDownloads", isDirectory: true)
+			.appendingPathComponent(UUID().uuidString, isDirectory: true)
 		
 		do {
-			try FileManager.default.createDirectoryIfNeeded(at: customTempDir)
+			if let response = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(response.statusCode) {
+				throw URLError(.badServerResponse)
+			}
+			try files.createDirectory(at: directory, withIntermediateDirectories: true)
+			let suggestedName = downloadTask.response?.suggestedFilename ?? download.fileName
+			let fileName = (suggestedName as NSString).lastPathComponent
+			let destinationURL = directory.appendingPathComponent(["", ".", "..", "/"].contains(fileName) ? "Download.ipa" : fileName)
+			try files.moveItem(at: location, to: destinationURL)
 			
-			// Use the server-suggested filename if available, otherwise fallback
-			let suggestedFileName = downloadTask.response?.suggestedFilename ?? download.fileName
-			let destinationURL = customTempDir.appendingPathComponent(suggestedFileName)
-			
-			try FileManager.default.removeFileIfNeeded(at: destinationURL)
-			try FileManager.default.moveItem(at: location, to: destinationURL)
-			
-			try handlePachageFile(url: destinationURL, dl: download)
+			importPackageFile(at: destinationURL, for: download, cleanupDirectory: directory)
 		} catch {
-			print("Error handling downloaded file: \(error.localizedDescription)")
+			try? files.removeItem(at: directory)
+			_finish(download, result: .failure(error))
 		}
 	}
 	
@@ -240,17 +210,13 @@ extension DownloadManager: URLSessionDownloadDelegate {
 	
 	func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
 		guard
-			let _ = error,
+			let error,
 			let downloadTask = task as? URLSessionDownloadTask,
 			let download = getDownloadTask(by: downloadTask)
 		else {
 			return
 		}
 		
-		DispatchQueue.main.async {
-			if let index = self.getDownloadIndex(by: download.id) {
-				self.downloads.remove(at: index)
-			}
-		}
+		_finish(download, result: .failure(error))
 	}
 }

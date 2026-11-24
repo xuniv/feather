@@ -19,6 +19,8 @@ struct HostedIPAUploadView: View {
     @State private var phase: Phase = .preparing
     @State private var progress: Double?
     @State private var message: String?
+    @State private var failure: Failure?
+    @State private var retryDates: [URL: Date] = [:]
 
     @State private var uploadedIPA: URL?
     @State private var uploadedManifest: URL?
@@ -31,7 +33,12 @@ struct HostedIPAUploadView: View {
 
     private var canUpload: Bool {
         guard let archive, let provider else { return false }
+        guard retryAt.map({ $0 <= .now }) ?? true else { return false }
         return HostedIPAMultipart.accepts(size: archive.size, provider: provider, choices: configuredChoices(for: provider))
+    }
+
+    private var retryAt: Date? {
+        provider.flatMap { retryDates[$0.upload.url] }
     }
 
     init(app: AppInfoPresentable) {
@@ -58,7 +65,15 @@ struct HostedIPAUploadView: View {
                     uploadSection
                 }
 
-                if let message {
+                if let failure {
+                    Section {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(failure.phase.failureTitle).font(.headline)
+                            Text(failure.host).font(.caption).foregroundStyle(.secondary)
+                            Text(failure.detail).foregroundStyle(.red).textSelection(.enabled)
+                        }
+                    }
+                } else if let message {
                     Section {
                         Text(message).foregroundStyle(.red).textSelection(.enabled)
                     }
@@ -75,6 +90,7 @@ struct HostedIPAUploadView: View {
         }
         .interactiveDismissDisabled(operation != nil)
         .task { await prepare() }
+        .task(id: retryAt) { await waitForRetry() }
         .onDisappear { operation?.cancel() }
     }
 
@@ -87,6 +103,7 @@ struct HostedIPAUploadView: View {
                     guard candidate.id != provider?.id else { return }
                     selectedProviderID = candidate.id
                     choices = [:]
+                    failure = nil
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
@@ -160,15 +177,20 @@ struct HostedIPAUploadView: View {
                 }
                 Button(.localized("Cancel Upload"), role: .cancel) { operation?.cancel() }
             } else {
-                Button(uploadedIPA == nil ? .localized("Upload") : .localized("Retry"),
+                Button(uploadedIPA == nil && failure == nil ? .localized("Upload") : .localized("Retry"),
                        systemImage: "arrow.up.circle", action: startUpload)
                     .disabled(!canUpload)
+                if let retryAt, retryAt > .now {
+                    Text(.localized("Try again after %@.", arguments: retryAt.formatted(date: .abbreviated, time: .standard)))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 if uploadedIPA != nil {
                     Button(.localized("Change Upload Options")) {
                         uploadedProvider = nil
                         uploadedIPA = nil
                         uploadedManifest = nil
                         message = nil
+                        failure = nil
                     }
                 }
             }
@@ -222,6 +244,7 @@ struct HostedIPAUploadView: View {
         guard operation == nil, canUpload, let archive, let provider else { return }
         let configuration = configuredChoices(for: provider)
         message = nil
+        failure = nil
         operation = Task { @MainActor in
             defer {
                 operation = nil
@@ -249,9 +272,11 @@ struct HostedIPAUploadView: View {
                 let data: Data
                 let manifest: URL
                 if let uploadedManifest {
+                    phase = .checkingManifest
                     data = try Data(contentsOf: local)
                     manifest = uploadedManifest
                 } else {
+                    phase = .sendingManifest
                     data = try PropertyListSerialization.data(
                         fromPropertyList: InstallationTransport.manifest(metadata: metadata, payload: ipa),
                         format: .xml, options: 0)
@@ -264,8 +289,27 @@ struct HostedIPAUploadView: View {
                 try await HostedIPAUpload.checkManifest(manifest, provider: provider, expected: data)
                 result = InstallationTransport.installationURL(manifest: manifest)
             } catch {
-                if !Task.isCancelled { message = error.localizedDescription }
+                guard !Task.isCancelled else { return }
+                if let date = (error as? HostedIPAUpload.HTTPError)?.retryAt, date > .now {
+                    retryDates[provider.upload.url] = date
+                }
+                let host = switch phase {
+                case .checkingIPA: uploadedIPA?.host
+                case .checkingManifest: uploadedManifest?.host
+                default: provider.upload.url.host
+                }
+                failure = Failure(phase: phase, host: host ?? provider.name, detail: error.localizedDescription)
             }
+        }
+    }
+
+    private func waitForRetry() async {
+        guard let provider, let retryAt else { return }
+        do {
+            try await Task.sleep(for: .seconds(max(0, retryAt.timeIntervalSinceNow)))
+        } catch { return }
+        if retryDates[provider.upload.url] == retryAt {
+            retryDates.removeValue(forKey: provider.upload.url)
         }
     }
 
@@ -294,5 +338,21 @@ struct HostedIPAUploadView: View {
             case .checkingManifest: .localized("Checking Install Link…")
             }
         }
+
+        var failureTitle: String {
+            switch self {
+            case .sendingIPA: .localized("IPA upload")
+            case .checkingIPA: .localized("IPA download check")
+            case .sendingManifest: .localized("Install manifest upload")
+            case .checkingManifest: .localized("Install manifest download check")
+            case .preparing, .ready: title
+            }
+        }
+    }
+
+    private struct Failure {
+        let phase: Phase
+        let host: String
+        let detail: String
     }
 }

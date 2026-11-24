@@ -1,4 +1,4 @@
-> This fork displays versions as upstream-revision (currently 2.9.0-7). See [fork maintenance](FORK_MAINTENANCE.md) for numeric package versions and upstream merges.
+> This fork displays versions as upstream-revision (currently 2.9.0-8). See [fork maintenance](FORK_MAINTENANCE.md) for numeric package versions and upstream merges.
 
 [![GitHub Release](https://img.shields.io/github/v/release/xuniv/feather?sort=date)](https://github.com/xuniv/feather/releases)
 [![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/xuniv/feather/total)](https://github.com/xuniv/feather/releases)

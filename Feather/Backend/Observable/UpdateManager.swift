@@ -40,6 +40,29 @@ final class UpdateManager: ObservableObject {
 		guard let uuid = app.uuid else { return nil }
 		return updates[uuid]
 	}
+
+	func importedApp(for update: AppUpdate, in apps: [Imported]) -> Imported? {
+		let storage = Storage.shared
+		var manualImport: Imported?
+		for app in apps {
+			if let metadata = storage.sourceMetadata(for: app) {
+				guard metadata.sourceAppIdentifier == update.bundleIdentifier,
+					metadata.sourceAppVersion == update.remoteVersion,
+					let repository = metadata.sourceRepositoryURL,
+					_matchesStoredRepository(storedSourceURL: repository, sourceURL: update.sourceURL),
+					storage.getAppDirectory(for: app) != nil else { continue }
+				return app
+			}
+			if manualImport == nil,
+				app.identifier == update.bundleIdentifier,
+				app.version == update.remoteVersion,
+				app.source.map({ _matchesStoredRepository(storedSourceURL: $0, sourceURL: update.sourceURL) }) ?? true,
+				storage.getAppDirectory(for: app) != nil {
+				manualImport = app
+			}
+		}
+		return manualImport
+	}
 	
 	func checkForUpdates(
 		sources: [AltSource],

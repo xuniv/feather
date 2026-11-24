@@ -9,13 +9,21 @@ import SwiftUI
 import PhotosUI
 import NimbleViews
 
+struct SigningRequest: Identifiable {
+	let id = UUID()
+	let app: AppInfoPresentable
+	var previousVersion: Signed?
+	var sourceProvenance: SourceAppProvenance?
+}
+
 // MARK: - View
 struct SigningView: View {
 	@Environment(\.dismiss) var dismiss
 	@StateObject private var _optionsManager = OptionsManager.shared
 
-	@State private var _temporaryOptions: Options = OptionsManager.shared.options
+	@State private var _temporaryOptions: Options
 	@State private var _temporaryCertificate: Int
+	@State private var _didPrepare = false
 	@State private var _isAltPickerPresenting = false
 	@State private var _isFilePickerPresenting = false
 	@State private var _isImagePickerPresenting = false
@@ -35,10 +43,37 @@ struct SigningView: View {
 		return certificates[_temporaryCertificate]
 	}
 
-	var app: AppInfoPresentable
+	let app: AppInfoPresentable
+	private let _sourceProvenance: SourceAppProvenance?
+	private let _previousVersion: Signed?
+	private let _initialOptions: Options
+	private let _initialIcon: UIImage?
+	private let _needsOptionsReview: Bool
 
-	init(app: AppInfoPresentable) {
-		self.app = app
+	init(request: SigningRequest) {
+		self.app = request.app
+		self._previousVersion = request.previousVersion
+		self._sourceProvenance = request.sourceProvenance
+		let saved = request.previousVersion.flatMap { Storage.shared.getUuidDirectory(for: $0) }
+			.flatMap { try? SavedSigningOptions.load(from: $0) }
+		var options = saved?.options ?? OptionsManager.shared.options
+		if let previous = request.previousVersion {
+			if saved == nil {
+				options.appName = previous.name
+				options.appIdentifier = previous.identifier
+				options.appVersion = nil
+			} else if previous.identifier != request.app.identifier {
+				options.appIdentifier = previous.identifier
+			}
+			// A duplicate's existing identifier is reused for its update.
+			options.duplicateApp = false
+		}
+		let icon = saved?.iconPNG.flatMap { UIImage(data: $0) }
+		_initialOptions = options
+		_initialIcon = icon
+		_needsOptionsReview = request.previousVersion != nil && saved == nil
+		__temporaryOptions = State(initialValue: options)
+		_appIcon = State(initialValue: icon)
 		let storedCert = UserDefaults.standard.integer(forKey: "feather.selectedCert")
 		__temporaryCertificate = State(initialValue: storedCert)
 	}
@@ -47,6 +82,11 @@ struct SigningView: View {
 	var body: some View {
 		NBNavigationView("", displayMode: .inline) {
 			Form {
+				if _needsOptionsReview {
+					Text(.localized("Review the signing options and select any tweaks again. This signed copy has no saved settings."))
+						.font(.footnote)
+						.foregroundStyle(.secondary)
+				}
 				_customizationOptions(for: app)
 				_cert()
 				_customizationProperties(for: app)
@@ -90,8 +130,8 @@ struct SigningView: View {
 					style: .text,
 					placement: .topBarTrailing
 				) {
-					_temporaryOptions = OptionsManager.shared.options
-					appIcon = nil
+					_temporaryOptions = _previousVersion == nil ? OptionsManager.shared.options : _initialOptions
+					appIcon = _initialIcon
 				}
 			}
 			.sheet(isPresented: $_isAltPickerPresenting) { SigningAlternativeIconView(app: app, appIcon: $appIcon, isModifing: .constant(true)) }
@@ -120,6 +160,16 @@ struct SigningView: View {
 			.animation(.smooth, value: _isSigning)
 		}
 		.onAppear {
+			guard !_didPrepare else { return }
+			_didPrepare = true
+			if let previous = _previousVersion {
+				if let certificate = previous.certificate,
+					let index = certificates.firstIndex(where: { $0.objectID == certificate.objectID }) {
+					_temporaryCertificate = index
+				}
+				return
+			}
+
 			// ppq protection
 			if
 				_optionsManager.options.ppqProtection,
@@ -264,6 +314,15 @@ extension SigningView {
 // MARK: - Extension: View (import)
 extension SigningView {
 	private func _start() {
+		let missingInputs = _temporaryOptions.missingSigningInputs
+		if _previousVersion != nil, !missingInputs.isEmpty {
+			UIAlertController.showAlertWithOk(
+				title: .localized("Signing"),
+				message: String(format: .localized("Restore or remove the signing files listed here before continuing.\n%@"),
+					missingInputs.map(\.lastPathComponent).joined(separator: ", "))
+			)
+			return
+		}
 		guard
 			_selectedCert() != nil || _temporaryOptions.signingOption != .default
 		else {
@@ -283,7 +342,8 @@ extension SigningView {
 			app,
 			using: _temporaryOptions,
 			icon: appIcon,
-			certificate: _selectedCert()
+			certificate: _selectedCert(),
+			sourceProvenance: _sourceProvenance
 		) { error, warnings in
 			if let error {
 				let ok = UIAlertAction(title: .localized("Dismiss"), style: .cancel) { _ in

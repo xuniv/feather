@@ -17,7 +17,7 @@ enum FR {
 		_ ipa: URL,
 		download: Download? = nil,
 		sourceProvenance: SourceAppProvenance? = nil,
-		completion: @escaping (Error?) -> Void
+		completion: @escaping (Result<String, Error>) -> Void
 	) {
 		Task.detached {
 			let handler = AppFileHandler(
@@ -30,15 +30,15 @@ enum FR {
 				try await handler.copy()
 				try await handler.extract()
 				try await handler.move()
-				try await handler.addToDatabase()
+				let importedUUID = try await handler.addToDatabase()
 				try? await handler.clean()
 				await MainActor.run {
-					completion(nil)
+					completion(.success(importedUUID))
 				}
 			} catch {
 				try? await handler.clean()
 				await MainActor.run {
-					completion(error)
+					completion(.failure(error))
 				}
 			}
 		}
@@ -49,10 +49,11 @@ enum FR {
 		using options: Options,
 		icon: UIImage?,
 		certificate: CertificatePair?,
+		sourceProvenance: SourceAppProvenance? = nil,
 		completion: @escaping (Error?, [String]) -> Void
 	) {
 		Task.detached {
-			let handler = SigningHandler(app: app, options: options)
+			let handler = SigningHandler(app: app, options: options, sourceProvenance: sourceProvenance)
 			handler.appCertificate = certificate
 			handler.appIcon = icon
 			

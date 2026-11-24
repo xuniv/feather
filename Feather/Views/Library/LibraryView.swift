@@ -15,7 +15,9 @@ struct LibraryView: View {
 	@StateObject var updateManager = UpdateManager.shared
 	
 	@State private var _selectedInfoAppPresenting: AnyApp?
-	@State private var _selectedSigningAppPresenting: AnyApp?
+	@State private var _selectedSigningAppPresenting: SigningRequest?
+	@State private var _readyUpdateSigning: SigningRequest?
+	@State private var _isDownloadingUpdate = false
 	@State private var _selectedInstallAppPresenting: AnyApp?
 	@State private var _selectedUploadAppPresenting: AnyApp?
 	@State private var _isImportingPresenting = false
@@ -82,15 +84,7 @@ struct LibraryView: View {
 						secondary: _filteredSignedApps.count.description
 					) {
 						ForEach(_filteredSignedApps, id: \.uuid) { app in
-							LibraryCellView(
-								app: app,
-								selectedInfoAppPresenting: $_selectedInfoAppPresenting,
-								selectedSigningAppPresenting: $_selectedSigningAppPresenting,
-								selectedInstallAppPresenting: $_selectedInstallAppPresenting,
-								selectedUploadAppPresenting: $_selectedUploadAppPresenting,
-								selectedAppUUIDs: $_selectedAppUUIDs
-							)
-							.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
+							_libraryCell(for: app)
 						}
 					}
 				}
@@ -104,15 +98,7 @@ struct LibraryView: View {
 						secondary: _filteredImportedApps.count.description
 					) {
 						ForEach(_filteredImportedApps, id: \.uuid) { app in
-							LibraryCellView(
-								app: app,
-								selectedInfoAppPresenting: $_selectedInfoAppPresenting,
-								selectedSigningAppPresenting: $_selectedSigningAppPresenting,
-								selectedInstallAppPresenting: $_selectedInstallAppPresenting,
-								selectedUploadAppPresenting: $_selectedUploadAppPresenting,
-								selectedAppUUIDs: $_selectedAppUUIDs
-							)
-							.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
+							_libraryCell(for: app)
 						}
 					}
 				}
@@ -198,9 +184,9 @@ struct LibraryView: View {
 			.sheet(item: $_selectedUploadAppPresenting) { app in
 				HostedIPAUploadView(app: app.base)
 			}
-			.fullScreenCover(item: $_selectedSigningAppPresenting) { app in
-				SigningView(app: app.base)
-					.compatNavigationTransition(id: app.base.uuid ?? "", ns: _namespace)
+			.fullScreenCover(item: $_selectedSigningAppPresenting) { request in
+				SigningView(request: request)
+					.compatNavigationTransition(id: request.previousVersion?.uuid ?? request.app.uuid ?? "", ns: _namespace)
 			}
 			.sheet(isPresented: $_isImportingPresenting) {
 				FileImporterRepresentableView(
@@ -212,7 +198,7 @@ struct LibraryView: View {
 						for url in urls {
 							let id = "FeatherManualDownload_\(UUID().uuidString)"
 							let dl = downloadManager.startArchive(from: url, id: id)
-							try? downloadManager.handlePachageFile(url: url, dl: dl)
+							downloadManager.importPackageFile(at: url, for: dl)
 						}
 					}
 				)
@@ -243,12 +229,29 @@ struct LibraryView: View {
 			.onChange(of: updateManager.isChecking) { isChecking in
 				_handleUpdateCheckStateChange(isChecking)
 			}
+			.onChange(of: _canPresentSigning) { _ in _presentUpdateSigningIfReady() }
+			.onAppear { _presentUpdateSigningIfReady() }
 		}
 	}
 }
 
 // MARK: - Extension: View
 extension LibraryView {
+	private func _libraryCell(for app: AppInfoPresentable) -> some View {
+		LibraryCellView(
+			app: app,
+			importedUpdate: { updateManager.importedApp(for: $0, in: Array(_importedApps)) },
+			prepareUpdate: _prepareSignedUpdate,
+			isPreparingUpdate: _isDownloadingUpdate || _readyUpdateSigning != nil,
+			selectedInfoAppPresenting: $_selectedInfoAppPresenting,
+			selectedSigningAppPresenting: $_selectedSigningAppPresenting,
+			selectedInstallAppPresenting: $_selectedInstallAppPresenting,
+			selectedUploadAppPresenting: $_selectedUploadAppPresenting,
+			selectedAppUUIDs: $_selectedAppUUIDs
+		)
+		.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
+	}
+
 	@ViewBuilder
 	private func _importActions() -> some View {
 		Button(.localized("Import from Files"), systemImage: "folder") {
@@ -297,6 +300,48 @@ extension LibraryView {
 			sources: Array(_sources),
 			localApps: localApps
 		)
+	}
+
+	private var _canPresentSigning: Bool {
+		_selectedSigningAppPresenting == nil && _selectedInfoAppPresenting == nil
+			&& _selectedInstallAppPresenting == nil && _selectedUploadAppPresenting == nil
+			&& !_isImportingPresenting && !_isDownloadingPresenting
+	}
+
+	private func _prepareSignedUpdate(_ signed: Signed, _ update: AppUpdate, _ imported: Imported?) {
+		guard !_isDownloadingUpdate, _readyUpdateSigning == nil else { return }
+		if let imported {
+			_readyUpdateSigning = SigningRequest(app: imported, previousVersion: signed, sourceProvenance: update.sourceProvenance)
+			_presentUpdateSigningIfReady()
+			return
+		}
+
+		_isDownloadingUpdate = true
+		_ = downloadManager.startDownload(
+			from: update.downloadURL,
+			id: "FeatherManualDownload_Update_\(update.localUUID)",
+			sourceProvenance: update.sourceProvenance
+		) { result in
+			_isDownloadingUpdate = false
+			switch result {
+			case .success(let uuid):
+				guard signed.managedObjectContext != nil, !signed.isDeleted,
+					let updated = Storage.shared.importedApp(withUUID: uuid) else { return }
+				_readyUpdateSigning = SigningRequest(app: updated, previousVersion: signed, sourceProvenance: update.sourceProvenance)
+				_presentUpdateSigningIfReady()
+			case .failure(let error):
+				guard !(error is CancellationError) else { return }
+				UIAlertController.showAlertWithOk(title: .localized("Download Update"), message: error.localizedDescription)
+			}
+		}
+	}
+
+	private func _presentUpdateSigningIfReady() {
+		guard _canPresentSigning, let request = _readyUpdateSigning else { return }
+		_readyUpdateSigning = nil
+		guard let signed = request.previousVersion, signed.managedObjectContext != nil, !signed.isDeleted,
+			Storage.shared.getAppDirectory(for: request.app) != nil else { return }
+		_selectedSigningAppPresenting = request
 	}
 	
 	private func _handleUpdateCheckStateChange(_ isChecking: Bool) {

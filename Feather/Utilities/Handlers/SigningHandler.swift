@@ -20,6 +20,7 @@ final class SigningHandler: NSObject {
 	// type of app it is
 	private var _app: AppInfoPresentable
 	private var _options: Options
+	private let _sourceProvenance: SourceAppProvenance?
 	private let _uniqueWorkDir: URL
 	// the options struct is not gonna decode these so
 	// we're just going to do this. If appicon is not
@@ -30,9 +31,10 @@ final class SigningHandler: NSObject {
 	var appIcon: UIImage?
 	var appCertificate: CertificatePair?
 	
-	init(app: AppInfoPresentable, options: Options = OptionsManager.shared.options) {
+	init(app: AppInfoPresentable, options: Options = OptionsManager.shared.options, sourceProvenance: SourceAppProvenance? = nil) {
 		self._app = app
 		self._options = options
+		self._sourceProvenance = sourceProvenance
 		self._uniqueWorkDir = _fileManager.temporaryDirectory
 			.appendingPathComponent("FeatherSigning_\(_uuid)", isDirectory: true)
 		super.init()
@@ -132,6 +134,15 @@ final class SigningHandler: NSObject {
 		
 		warnings = handler.warnings
 		try await self.move()
+		do {
+			try SavedSigningOptions.write(
+				_options,
+				iconPNG: appIcon?.resize(152, 152).pngData(),
+				to: _fileManager.signed(_uuid)
+			)
+		} catch {
+			warnings.append(.localized("Could not save the signing settings for future updates."))
+		}
 		try await self.addToDatabase()
 		
 	}
@@ -153,35 +164,31 @@ final class SigningHandler: NSObject {
 		try? _fileManager.removeItem(at: _uniqueWorkDir)
 	}
 	
-	func addToDatabase() async throws {
-		let app = try await _directory()
-		
-		guard let appUrl = _fileManager.getPath(in: app, for: "app") else {
-			return
+	@MainActor
+	func addToDatabase() throws {
+		let app = _fileManager.signed(_uuid)
+		guard let appUrl = _fileManager.getPath(in: app, for: "app"), let bundle = Bundle(url: appUrl) else {
+			throw SigningFileHandlerError.appNotFound
 		}
 		
-		await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-			let bundle = Bundle(url: appUrl)
-			
-			Storage.shared.addSigned(
-				uuid: _uuid,
-				source: _app.source,
-				certificate: _options.signingOption != .default ? nil : appCertificate,
-				appName: bundle?.name,
-				appIdentifier: bundle?.bundleIdentifier,
-				appVersion: bundle?.version,
-				appIcon: bundle?.iconFileName
-			) { _ in
-				Logger.signing.info("[\(self._uuid)] Added to database")
-				continuation.resume()
-			}
+		let storage = Storage.shared
+		storage.addSigned(
+			uuid: _uuid,
+			source: _sourceProvenance?.sourceRepositoryURL ?? _app.source,
+			certificate: _options.signingOption != .default ? nil : appCertificate,
+			appName: bundle.name,
+			appIdentifier: bundle.bundleIdentifier,
+			appVersion: bundle.version,
+			appIcon: bundle.iconFileName
+		) { _ in
+			Logger.signing.info("[\(self._uuid)] Added to database")
 		}
 		
-		Storage.shared.copySourceMetadata(
-			from: _app.uuid,
-			to: _uuid,
-			kind: .signed
-		)
+		if let _sourceProvenance {
+			storage.addSourceMetadata(for: _uuid, kind: .signed, provenance: _sourceProvenance)
+		} else {
+			storage.copySourceMetadata(from: _app.uuid, to: _uuid, kind: .signed)
+		}
 	}
 	
 	private func _directory() async throws -> URL {

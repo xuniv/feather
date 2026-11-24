@@ -1,6 +1,127 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Download Update & Re-sign" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트 다운로드 및 재서명"
+          }
+        }
+      }
+    },
+    "Re-sign & Update" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "재서명 및 업데이트"
+          }
+        }
+      }
+    },
+    "Review the signing options and select any tweaks again. This signed copy has no saved settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 앱의 서명 설정이 저장되어 있지 않습니다. 서명 옵션을 확인하고 트윅을 다시 선택하세요."
+          }
+        }
+      }
+    },
+    "Restore or remove the signing files listed here before continuing.\n%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "계속하려면 다음 서명 파일을 복원하거나 옵션에서 제거하세요.\n%@"
+          }
+        }
+      }
+    },
+    "Could not save the signing settings for future updates." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다음 업데이트에 사용할 서명 설정을 저장하지 못했습니다."
+          }
+        }
+      }
+    },
+    "The IPA does not contain a valid app bundle." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IPA에 유효한 앱 번들이 없습니다."
+          }
+        }
+      }
+    },
+    "IPA upload" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IPA 업로드"
+          }
+        }
+      }
+    },
+    "IPA download check" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IPA 다운로드 확인"
+          }
+        }
+      }
+    },
+    "Install manifest upload" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치 매니페스트 업로드"
+          }
+        }
+      }
+    },
+    "Install manifest download check" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치 매니페스트 다운로드 확인"
+          }
+        }
+      }
+    },
+    "Try again after %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 이후에 다시 시도하세요."
+          }
+        }
+      }
+    },
     "Upload for Install" : {
       "extractionState" : "manual",
       "localizations" : {

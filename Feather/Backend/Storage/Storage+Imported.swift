@@ -10,6 +10,13 @@ import UIKit.UIImpactFeedbackGenerator
 
 // MARK: - Class extension: Imported Apps
 extension Storage {
+	func importedApp(withUUID uuid: String) -> Imported? {
+		let request: NSFetchRequest<Imported> = Imported.fetchRequest()
+		request.fetchLimit = 1
+		request.predicate = NSPredicate(format: "uuid == %@", uuid)
+		return (try? context.fetch(request))?.first
+	}
+
 	func addImported(
 		uuid: String,
 		source: URL? = nil,

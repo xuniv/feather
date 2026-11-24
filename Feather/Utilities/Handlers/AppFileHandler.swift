@@ -105,22 +105,23 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 		try? _fileManager.removeItem(at: _uniqueWorkDir)
 	}
 	
-	func addToDatabase() async throws {
-		let app = try await _directory()
-		
-		guard let appUrl = _fileManager.getPath(in: app, for: "app") else {
-			return
+	@MainActor
+	func addToDatabase() throws -> String {
+		let app = _fileManager.unsigned(_uuid)
+		guard let appUrl = _fileManager.getPath(in: app, for: "app"),
+			let bundle = Bundle(url: appUrl),
+			let identifier = bundle.bundleIdentifier, !identifier.isEmpty else {
+			try? _fileManager.removeItem(at: app)
+			throw ImportedFileHandlerError.appNotFound
 		}
-		
-		let bundle = Bundle(url: appUrl)
 		
 		Storage.shared.addImported(
 			uuid: _uuid,
 			source: _sourceProvenance?.sourceRepositoryURL,
-			appName: bundle?.name,
-			appIdentifier: bundle?.bundleIdentifier,
-			appVersion: bundle?.version,
-			appIcon: bundle?.iconFileName
+			appName: bundle.name,
+			appIdentifier: identifier,
+			appVersion: bundle.version,
+			appIcon: bundle.iconFileName
 		) { _ in }
 		
 		if let sourceProvenance = _sourceProvenance {
@@ -130,6 +131,7 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 				provenance: sourceProvenance
 			)
 		}
+		return _uuid
 	}
 	
 	private func _directory() async throws -> URL {
@@ -142,6 +144,11 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 	}
 }
 
-private enum ImportedFileHandlerError: Error {
+private enum ImportedFileHandlerError: LocalizedError {
 	case payloadNotFound
+	case appNotFound
+
+	var errorDescription: String? {
+		.localized("The IPA does not contain a valid app bundle.")
+	}
 }
