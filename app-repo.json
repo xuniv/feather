@@ -14,6 +14,14 @@
       "tintColor": "848ef9",
       "versions": [
         {
+          "version": "2.9.8",
+          "date": "2026-11-24T08:01:33Z",
+          "size": 14654758,
+          "sha256": "462e4f1be972d7680a845bda93fe8a3c613841a721ce0ddf9b89ec86ab5895e1",
+          "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.0-8/Feather-unsigned.ipa",
+          "localizedDescription": "Feather fork 2.9.0-8. Re-sign source updates with saved signing options and see the failing step for hosted uploads."
+        },
+        {
           "version": "2.9.7",
           "date": "2026-11-24T07:10:39Z",
           "size": 14603836,
