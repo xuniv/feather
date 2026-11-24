@@ -48,7 +48,7 @@ enum InstallationTransport {
         var errorDescription: String? { message }
     }
 
-    struct Metadata {
+    struct Metadata: Sendable {
         let identifier: String
         let name: String
         let version: String

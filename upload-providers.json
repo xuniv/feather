@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "defaultProvider": "litterbox",
+  "providers": [
+    {
+      "id": "litterbox",
+      "name": "Litterbox",
+      "fileLimitBytes": 1000000000,
+      "upload": {
+        "url": "https://litterbox.catbox.moe/resources/internals/api.php",
+        "fileField": "fileToUpload",
+        "fields": {
+          "reqtype": "fileupload"
+        },
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "plainTextURL"
+        },
+        "ua": false
+      },
+      "download": {
+        "hosts": [
+          "litter.catbox.moe"
+        ],
+        "manifestMIMETypes": [
+          "text/xml",
+          "application/xml"
+        ]
+      },
+      "options": [
+        {
+          "id": "retention",
+          "label": "Retention",
+          "defaultChoice": "1h",
+          "choices": [
+            {
+              "id": "1h",
+              "label": "1 hour",
+              "fields": {
+                "time": "1h"
+              }
+            },
+            {
+              "id": "12h",
+              "label": "12 hours",
+              "fields": {
+                "time": "12h"
+              }
+            },
+            {
+              "id": "24h",
+              "label": "24 hours",
+              "fields": {
+                "time": "24h"
+              }
+            },
+            {
+              "id": "72h",
+              "label": "72 hours",
+              "fields": {
+                "time": "72h"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "0x0-st",
+      "name": "0x0.st",
+      "fileLimitBytes": 536870912,
+      "requestLimitBytes": 536870912,
+      "upload": {
+        "url": "https://0x0.st/",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "plainTextURL"
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "0x0.st"
+        ],
+        "manifestMIMETypes": [
+          "text/xml",
+          "application/xml"
+        ]
+      },
+      "options": [
+        {
+          "id": "retention",
+          "label": "Retention",
+          "defaultChoice": "automatic",
+          "choices": [
+            {
+              "id": "automatic",
+              "label": "Provider Default",
+              "fields": {}
+            },
+            {
+              "id": "1h",
+              "label": "1 hour",
+              "fields": {
+                "expires": "1"
+              }
+            },
+            {
+              "id": "12h",
+              "label": "12 hours",
+              "fields": {
+                "expires": "12"
+              }
+            },
+            {
+              "id": "24h",
+              "label": "24 hours",
+              "fields": {
+                "expires": "24"
+              }
+            },
+            {
+              "id": "72h",
+              "label": "72 hours",
+              "fields": {
+                "expires": "72"
+              }
+            },
+            {
+              "id": "168h",
+              "label": "7 days",
+              "fields": {
+                "expires": "168"
+              }
+            },
+            {
+              "id": "720h",
+              "label": "30 days",
+              "fields": {
+                "expires": "720"
+              }
+            }
+          ]
+        },
+        {
+          "id": "link-length",
+          "label": "Link ID",
+          "defaultChoice": "longer",
+          "choices": [
+            {
+              "id": "longer",
+              "label": "Longer Random ID",
+              "fields": {
+                "secret": ""
+              }
+            },
+            {
+              "id": "default",
+              "label": "Provider Default",
+              "fields": {}
+            }
+          ]
+        }
+      ],
+      "retentionNote": "The provider sets the default expiry based on file size. 0x0.st can reject uploads from some networks."
+    }
+  ]
+}

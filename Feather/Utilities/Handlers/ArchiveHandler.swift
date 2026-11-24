@@ -69,11 +69,14 @@ final class ArchiveHandler: NSObject {
 		}.value
 	}
 	
-	func moveToArchive(_ package: URL, shouldOpen: Bool = false) async throws -> URL? {
-		let appendingString = "\(_app.name!)_\(_app.version!)_\(Int(Date().timeIntervalSince1970)).ipa"
+	func moveToArchive(_ package: URL, shouldOpen: Bool = false) async throws -> URL {
+		let name = (_app.name ?? "App").replacingOccurrences(of: "/", with: "_")
+		let version = (_app.version ?? "1").replacingOccurrences(of: "/", with: "_")
+		let appendingString = "\(name)_\(version)_\(Int(Date().timeIntervalSince1970)).ipa"
 		let dest = _fileManager.archives.appendingPathComponent(appendingString)
 		
-		try? _fileManager.moveItem(
+		try _fileManager.createDirectoryIfNeeded(at: _fileManager.archives)
+		try _fileManager.moveItem(
 			at: package,
 			to: dest
 		)

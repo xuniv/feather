@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag matching Feather.xcconfig (for example v2.9.0-6)
+        description: Release tag matching Feather.xcconfig (for example v2.9.0-7)
         required: true
         type: string
 
@@ -41,7 +41,7 @@ jobs:
               output.write('RELEASE_VERSION=' + version['release'] + '\n')
               output.write('PACKAGE_VERSION=' + version['package'] + '\n')
           PY
-      - name: Original IPA preservation
+      - name: IPA preservation and hosted upload packaging
         run: bash Tests/OriginalIPA/check.sh
       - name: Signing and packaging regressions
         run: |

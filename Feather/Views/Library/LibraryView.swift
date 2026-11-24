@@ -17,6 +17,7 @@ struct LibraryView: View {
 	@State private var _selectedInfoAppPresenting: AnyApp?
 	@State private var _selectedSigningAppPresenting: AnyApp?
 	@State private var _selectedInstallAppPresenting: AnyApp?
+	@State private var _selectedUploadAppPresenting: AnyApp?
 	@State private var _isImportingPresenting = false
 	@State private var _isDownloadingPresenting = false
 	@State private var _alertDownloadString: String = "" // for _isDownloadingPresenting
@@ -86,6 +87,7 @@ struct LibraryView: View {
 								selectedInfoAppPresenting: $_selectedInfoAppPresenting,
 								selectedSigningAppPresenting: $_selectedSigningAppPresenting,
 								selectedInstallAppPresenting: $_selectedInstallAppPresenting,
+								selectedUploadAppPresenting: $_selectedUploadAppPresenting,
 								selectedAppUUIDs: $_selectedAppUUIDs
 							)
 							.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
@@ -107,6 +109,7 @@ struct LibraryView: View {
 								selectedInfoAppPresenting: $_selectedInfoAppPresenting,
 								selectedSigningAppPresenting: $_selectedSigningAppPresenting,
 								selectedInstallAppPresenting: $_selectedInstallAppPresenting,
+								selectedUploadAppPresenting: $_selectedUploadAppPresenting,
 								selectedAppUUIDs: $_selectedAppUUIDs
 							)
 							.compatMatchedTransitionSource(id: app.uuid ?? "", ns: _namespace)
@@ -191,6 +194,9 @@ struct LibraryView: View {
 				InstallPreviewView(app: app.base, isSharing: app.archive)
 					.presentationDetents([.height(200)])
 					.presentationDragIndicator(.visible)
+			}
+			.sheet(item: $_selectedUploadAppPresenting) { app in
+				HostedIPAUploadView(app: app.base)
 			}
 			.fullScreenCover(item: $_selectedSigningAppPresenting) { app in
 				SigningView(app: app.base)

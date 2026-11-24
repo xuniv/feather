@@ -50,3 +50,4 @@ for (key, value) in [("CFBundleIdentifier", "bad/identifier"), ("CFBundleVersion
 var tv = info; tv["CFBundleSupportedPlatforms"] = ["AppleTVOS"]
 expectFailure { _ = try OriginalIPAMetadata.parse(tv) }
 print("Original IPA metadata and byte-preservation checks passed")
+try await checkHostedIPA(catalogFile: URL(fileURLWithPath: CommandLine.arguments[1]))

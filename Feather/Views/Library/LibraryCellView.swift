@@ -29,6 +29,7 @@ struct LibraryCellView: View {
 	@Binding var selectedInfoAppPresenting: AnyApp?
 	@Binding var selectedSigningAppPresenting: AnyApp?
 	@Binding var selectedInstallAppPresenting: AnyApp?
+	@Binding var selectedUploadAppPresenting: AnyApp?
 	@Binding var selectedAppUUIDs: Set<String>
 	
 	// MARK: Selections
@@ -190,6 +191,9 @@ extension LibraryCellView {
 			Button(.localized("Install"), systemImage: "square.and.arrow.down") {
 				selectedInstallAppPresenting = AnyApp(base: app)
 			}
+			Button(.localized("Upload for Install"), systemImage: "arrow.up.circle") {
+				selectedUploadAppPresenting = AnyApp(base: app)
+			}
 			Button(.localized("Re-sign"), systemImage: "signature") {
 				selectedSigningAppPresenting = AnyApp(base: app)
 			}
@@ -202,6 +206,12 @@ extension LibraryCellView {
 			}
 			Button(.localized("Sign"), systemImage: "signature") {
 				selectedSigningAppPresenting = AnyApp(base: app)
+			}
+			Button(.localized("Share"), systemImage: "square.and.arrow.up") {
+				selectedInstallAppPresenting = AnyApp(base: app, archive: true)
+			}
+			Button(.localized("Upload for Share"), systemImage: "arrow.up.circle") {
+				selectedUploadAppPresenting = AnyApp(base: app)
 			}
 		}
 	}

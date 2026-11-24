@@ -13,6 +13,7 @@ import OSLog
 @main
 struct FeatherApp: App {
 	@UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+	@Environment(\.scenePhase) private var scenePhase
 	
 	let heartbeat = HeartbeatManager.shared
 	
@@ -28,6 +29,9 @@ struct FeatherApp: App {
 					.environment(\.managedObjectContext, storage.context)
 					.onOpenURL(perform: _handleURL)
 					.transition(.move(edge: .top).combined(with: .opacity))
+			}
+			.task(id: scenePhase) {
+				if scenePhase == .active { await UploadProviderStore.shared.refresh() }
 			}
 			.animation(.smooth, value: downloadManager.manualDownloads.description)
 			.onReceive(NotificationCenter.default.publisher(for: .heartbeatInvalidHost)) { _ in

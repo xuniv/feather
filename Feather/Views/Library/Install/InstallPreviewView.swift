@@ -191,19 +191,11 @@ struct InstallPreviewView: View {
 						try await handler.install(at: packageUrl, suspend: app.identifier == Bundle.main.bundleIdentifier!)
 					}
 				} else {
-					let package = try await handler.moveToArchive(packageUrl, shouldOpen: !_useShareSheet)
-					
-					if await !_useShareSheet {
-						await MainActor.run {
-							dismiss()
-						}
-					} else {
-						if let package {
-							await MainActor.run {
-								dismiss()
-								UIActivityViewController.show(activityItems: [package])
-							}
-						}
+					let useShareSheet = await MainActor.run { _useShareSheet || !app.isSigned }
+					let package = try await handler.moveToArchive(packageUrl, shouldOpen: !useShareSheet)
+					await MainActor.run {
+						dismiss()
+						if useShareSheet { UIActivityViewController.show(activityItems: [package]) }
 					}
 				}
 			} catch {
