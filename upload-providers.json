@@ -167,6 +167,152 @@
         }
       ],
       "retentionNote": "The provider sets the default expiry based on file size. 0x0.st can reject uploads from some networks."
+    },
+    {
+      "id": "drop-pensa",
+      "name": "Drop Pensa",
+      "fileLimitBytes": 50000000,
+      "upload": {
+        "url": "https://drop.pensa.ar/upload",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "jsonURL",
+          "path": [
+            "url"
+          ]
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "drop.pensa.ar"
+        ],
+        "manifestMIMETypes": [
+          "text/xml",
+          "application/xml"
+        ]
+      },
+      "options": [
+        {
+          "id": "retention",
+          "label": "Retention",
+          "defaultChoice": "1h",
+          "choices": [
+            {
+              "id": "1h",
+              "label": "1 hour",
+              "fields": {
+                "expires_in": "3600"
+              }
+            },
+            {
+              "id": "6h",
+              "label": "6 hours",
+              "fields": {
+                "expires_in": "21600"
+              }
+            },
+            {
+              "id": "24h",
+              "label": "24 hours",
+              "fields": {
+                "expires_in": "86400"
+              }
+            },
+            {
+              "id": "7d",
+              "label": "7 days",
+              "fields": {
+                "expires_in": "604800"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "juicebox",
+      "name": "Juicebox",
+      "fileLimitBytes": 100000000,
+      "requestLimitBytes": 100000000,
+      "upload": {
+        "url": "https://box.juicey.dev/upload",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "jsonURL",
+          "path": [
+            "raw_url"
+          ]
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "f.juicey.dev"
+        ],
+        "manifestMIMETypes": [
+          "text/xml",
+          "application/xml"
+        ]
+      },
+      "options": [
+        {
+          "id": "retention",
+          "label": "Retention",
+          "defaultChoice": "1h",
+          "choices": [
+            {
+              "id": "1h",
+              "label": "1 hour",
+              "fields": {
+                "ttl_hours": "1"
+              }
+            },
+            {
+              "id": "6h",
+              "label": "6 hours",
+              "fields": {
+                "ttl_hours": "6"
+              }
+            },
+            {
+              "id": "12h",
+              "label": "12 hours",
+              "fields": {
+                "ttl_hours": "12"
+              }
+            },
+            {
+              "id": "24h",
+              "label": "24 hours",
+              "fields": {
+                "ttl_hours": "24"
+              }
+            },
+            {
+              "id": "72h",
+              "label": "72 hours",
+              "fields": {
+                "ttl_hours": "72"
+              }
+            },
+            {
+              "id": "7d",
+              "label": "7 days",
+              "fields": {
+                "ttl_hours": "168"
+              }
+            }
+          ]
+        }
+      ],
+      "retentionNote": "Feather uses the single-request upload route, with a 100 MB request limit."
     }
   ]
 }
