@@ -77,12 +77,16 @@ enum InstallationTransport {
               components.fragment == nil else {
             throw Failure(message: "The hosted plist server must be a valid HTTPS URL.")
         }
+        // The default plistworker escapes XML itself. Older custom plistserver
+        // endpoints expect XML-escaped values because they interpolate verbatim.
+        let workerEscapesXML = host.lowercased() == "api.palera.in" && components.path == "/genPlist"
+        func queryText(_ value: String) -> String { workerEscapesXML ? value : xmlText(value) }
         let reserved: Set<String> = ["bundleid", "name", "version", "fetchurl"]
         components.queryItems = (components.queryItems ?? []).filter { !reserved.contains($0.name) } + [
-            URLQueryItem(name: "bundleid", value: xmlText(metadata.identifier)),
-            URLQueryItem(name: "name", value: xmlText(metadata.name)),
-            URLQueryItem(name: "version", value: xmlText(metadata.version)),
-            URLQueryItem(name: "fetchurl", value: xmlText(payload.absoluteString))
+            URLQueryItem(name: "bundleid", value: queryText(metadata.identifier)),
+            URLQueryItem(name: "name", value: queryText(metadata.name)),
+            URLQueryItem(name: "version", value: queryText(metadata.version)),
+            URLQueryItem(name: "fetchurl", value: queryText(payload.absoluteString))
         ]
         // The plistserver API uses form decoding, where an unescaped '+' means space.
         components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")

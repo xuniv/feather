@@ -58,7 +58,7 @@ To properly contribute and test potentially test localizations, you can head ove
 - [LiveContainer](https://github.com/LiveContainer/LiveContainer) - Fixes/some help
 - [Nuke](https://github.com/kean/Nuke) - Image caching.
 - [Asspp](https://github.com/Lakr233/Asspp) - Some code for setting up the http server.
-- [plistserver](https://github.com/nekohaxx/plistserver) - Hosted on https://api.palera.in.
+- [plistworker](https://github.com/palera1n/plistworker) - Hosted installation manifests via https://api.palera.in.
 
 ## License 
 

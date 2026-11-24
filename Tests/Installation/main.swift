@@ -25,6 +25,15 @@ assert(fields.first { $0.name == "fetchurl" }!.value == InstallationTransport.xm
 assert(fields.first { $0.name == "custom" }!.value == "a+b")
 assert(!hosted.absoluteString.contains("+"))
 
+// The new default worker escapes XML itself, unlike the legacy custom server.
+let payloadWithQuery = URL(string: "http://127.0.0.1:4567/test.ipa?a=1&b=2")!
+let worker = try InstallationTransport.hostedManifest(server: InstallationTransport.defaultHostedServer,
+    metadata: metadata, payload: payloadWithQuery)
+let workerFields = URLComponents(url: worker, resolvingAgainstBaseURL: false)!.queryItems!
+assert(workerFields.first { $0.name == "name" }!.value == metadata.name)
+assert(workerFields.first { $0.name == "fetchurl" }!.value == payloadWithQuery.absoluteString)
+assert(!worker.absoluteString.contains("+"))
+
 // The upstream Rust service interpolates query values verbatim into XML.
 // Recreate that response to verify URL decoding + XML decoding exactly once.
 let values = Dictionary(uniqueKeysWithValues: fields.map { ($0.name, $0.value!) })
