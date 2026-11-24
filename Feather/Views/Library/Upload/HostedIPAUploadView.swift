@@ -181,7 +181,7 @@ struct HostedIPAUploadView: View {
                        systemImage: "arrow.up.circle", action: startUpload)
                     .disabled(!canUpload)
                 if let retryAt, retryAt > .now {
-                    Text(.localized("Try again after %@.", arguments: retryAt.formatted(date: .abbreviated, time: .standard)))
+                    Text(verbatim: .localized("Try again after %@.", arguments: retryAt.formatted(date: .abbreviated, time: .standard)))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 if uploadedIPA != nil {
