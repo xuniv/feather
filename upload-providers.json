@@ -313,6 +313,366 @@
         }
       ],
       "retentionNote": "Feather uses the single-request upload route, with a 100 MB request limit."
+    },
+    {
+      "id": "stocare",
+      "name": "StoCare",
+      "fileLimitBytes": 100000000,
+      "upload": {
+        "url": "https://ul.sto.care/",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "jsonURL",
+          "path": [
+            "url"
+          ]
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "trystocare.com"
+        ],
+        "manifestMIMETypes": [
+          "text/xml"
+        ]
+      },
+      "options": [],
+      "retentionNote": "Expires after 72 hours or 10 downloads per file."
+    },
+    {
+      "id": "transfr-one",
+      "name": "transfr.one",
+      "fileLimitBytes": 20000000,
+      "requestLimitBytes": 20000000,
+      "upload": {
+        "url": "https://transfr.one/",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "plainTextURL"
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "transfr.one"
+        ],
+        "manifestMIMETypes": [
+          "text/xml"
+        ]
+      },
+      "options": [],
+      "retentionNote": "Files expire after 7 days."
+    },
+    {
+      "id": "isrv",
+      "name": "iSRV",
+      "fileLimitBytes": 1073741824,
+      "upload": {
+        "url": "https://isrv.nl/",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "jsonURL",
+          "path": [
+            "shortUrl"
+          ]
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "isrv.nl"
+        ],
+        "manifestMIMETypes": [
+          "text/xml"
+        ]
+      },
+      "options": [
+        {
+          "id": "retention",
+          "label": "Retention",
+          "defaultChoice": "24h",
+          "choices": [
+            {
+              "id": "1h",
+              "label": "1 hour",
+              "fields": {
+                "expires": "1"
+              }
+            },
+            {
+              "id": "12h",
+              "label": "12 hours",
+              "fields": {
+                "expires": "12"
+              }
+            },
+            {
+              "id": "24h",
+              "label": "24 hours",
+              "fields": {
+                "expires": "24"
+              }
+            },
+            {
+              "id": "72h",
+              "label": "72 hours",
+              "fields": {
+                "expires": "72"
+              }
+            },
+            {
+              "id": "168h",
+              "label": "7 days",
+              "fields": {
+                "expires": "168"
+              }
+            },
+            {
+              "id": "automatic",
+              "label": "Provider Default",
+              "fields": {}
+            }
+          ]
+        }
+      ],
+      "retentionNote": "The provider default is 7 to 365 days based on file size."
+    },
+    {
+      "id": "crafterbin",
+      "name": "CrafterBin",
+      "fileLimitBytes": 536870912,
+      "requestLimitBytes": 536870912,
+      "upload": {
+        "url": "https://crafterbin.glennstack.dev/",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "plainTextURL"
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "crafterbin.glennstack.dev"
+        ],
+        "manifestMIMETypes": [
+          "text/xml"
+        ]
+      },
+      "options": [
+        {
+          "id": "retention",
+          "label": "Retention",
+          "defaultChoice": "24h",
+          "choices": [
+            {
+              "id": "1h",
+              "label": "1 hour",
+              "fields": {
+                "expires": "1"
+              }
+            },
+            {
+              "id": "12h",
+              "label": "12 hours",
+              "fields": {
+                "expires": "12"
+              }
+            },
+            {
+              "id": "24h",
+              "label": "24 hours",
+              "fields": {
+                "expires": "24"
+              }
+            },
+            {
+              "id": "72h",
+              "label": "72 hours",
+              "fields": {
+                "expires": "72"
+              }
+            },
+            {
+              "id": "168h",
+              "label": "7 days",
+              "fields": {
+                "expires": "168"
+              }
+            },
+            {
+              "id": "automatic",
+              "label": "Provider Default",
+              "fields": {}
+            }
+          ]
+        }
+      ],
+      "retentionNote": "The provider default is 7 to 365 days based on file size."
+    },
+    {
+      "id": "godrop",
+      "name": "GoDrop",
+      "fileLimitBytes": 20000000,
+      "upload": {
+        "url": "https://godrop.sh/upload?format=url",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "plainTextURL"
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "godrop.sh"
+        ],
+        "manifestMIMETypes": [
+          "text/xml"
+        ]
+      },
+      "options": [],
+      "retentionNote": "Anonymous uploads expire after 3 days."
+    },
+    {
+      "id": "tmpstore",
+      "name": "/tmp/store",
+      "fileLimitBytes": 50000000,
+      "upload": {
+        "url": "https://tmpstore.org/api/v1/upload",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "jsonURL",
+          "path": [
+            "data",
+            "url"
+          ]
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "tmpstore.org"
+        ],
+        "manifestMIMETypes": [
+          "text/xml"
+        ]
+      },
+      "options": [
+        {
+          "id": "retention",
+          "label": "Retention",
+          "defaultChoice": "1h",
+          "choices": [
+            {
+              "id": "1m",
+              "label": "1 minute",
+              "fields": {
+                "expire": "60"
+              }
+            },
+            {
+              "id": "10m",
+              "label": "10 minutes",
+              "fields": {
+                "expire": "600"
+              }
+            },
+            {
+              "id": "1h",
+              "label": "1 hour",
+              "fields": {
+                "expire": "3600"
+              }
+            },
+            {
+              "id": "4h",
+              "label": "4 hours",
+              "fields": {
+                "expire": "14400"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "okfile",
+      "name": "OkFile",
+      "fileLimitBytes": 5242880,
+      "upload": {
+        "url": "https://www.okfile.com/api/upload/quick",
+        "fileField": "file",
+        "fields": {
+          "burnAfterRead": "false"
+        },
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "jsonURL",
+          "path": [
+            "url"
+          ]
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "ok26.org"
+        ],
+        "manifestMIMETypes": [
+          "text/xml"
+        ]
+      },
+      "options": [],
+      "retentionNote": "Anonymous quick uploads expire after 24 hours or 10 downloads per file."
+    },
+    {
+      "id": "ayaya",
+      "name": "Ayaya",
+      "fileLimitBytes": 4294967296,
+      "requestLimitBytes": 4294967296,
+      "upload": {
+        "url": "https://ayaya.beauty/-/upload",
+        "fileField": "file",
+        "fields": {},
+        "ipaFilename": "App.ipa",
+        "manifestFilename": "install.xml",
+        "response": {
+          "format": "jsonURL",
+          "path": [
+            "directLinkExt"
+          ]
+        },
+        "ua": true
+      },
+      "download": {
+        "hosts": [
+          "ayaya.beauty"
+        ],
+        "manifestMIMETypes": [
+          "text/xml"
+        ]
+      },
+      "options": [],
+      "retentionNote": "Files expire after 14 days."
     }
   ]
 }
