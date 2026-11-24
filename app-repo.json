@@ -14,6 +14,14 @@
       "tintColor": "848ef9",
       "versions": [
         {
+          "version": "2.9.9",
+          "date": "2026-11-24T09:39:53Z",
+          "size": 13745309,
+          "sha256": "29e10e312484a0b6f2e5985ae4deb8c3f047cb0df2475053201dda82aa679b11",
+          "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.0-9/Feather-unsigned.ipa",
+          "localizedDescription": "Feather fork 2.9.0-9. Supports file2.me guest IPA and installation manifest uploads. Removes OkFile from the default provider list."
+        },
+        {
           "version": "2.9.8",
           "date": "2026-11-24T08:01:33Z",
           "size": 14654758,
