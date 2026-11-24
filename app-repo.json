@@ -14,6 +14,20 @@
       "tintColor": "848ef9",
       "versions": [
         {
+          "version": "2.9.7",
+          "date": "2026-11-24T07:10:39Z",
+          "size": 14603836,
+          "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.0-7/Feather-unsigned.ipa",
+          "localizedDescription": "Feather fork 2.9.0-7. Adds upload for install and share, a refreshable hosting provider catalog and upstream plistworker compatibility."
+        },
+        {
+          "version": "2.9.6",
+          "date": "2026-11-24T06:12:31Z",
+          "size": 14474998,
+          "downloadURL": "https://github.com/xuniv/alt/releases/download/thewonderofyou.Feather-v2.9.6/Feather-2.9.6.ipa",
+          "localizedDescription": "Feather fork 2.9.0-6. Direct Local CA Offline installation with Safari Web View bypass on by default."
+        },
+        {
           "version": "2.9.5",
           "date": "2026-11-17T02:00:11Z",
           "size": 14495452,
@@ -58,10 +72,10 @@
         "https://github.com/khcrysalis/Feather/blob/v1.x/Images/Sign.png?raw=true",
         "https://github.com/khcrysalis/Feather/blob/v1.x/Images/Store.png?raw=true"
       ],
-      "version": "2.9.5",
-      "versionDate": "2026-11-17T02:00:11Z",
-      "size": 14495452,
-      "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.0-5/Feather-unsigned.ipa"
+      "version": "2.9.7",
+      "versionDate": "2026-11-24T07:10:39Z",
+      "size": 14603836,
+      "downloadURL": "https://github.com/xuniv/feather/releases/download/v2.9.0-7/Feather-unsigned.ipa"
     }
   ],
   "news": [
