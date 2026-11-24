@@ -17,6 +17,9 @@ struct InstallPreviewView: View {
 	@AppStorage("Feather.useShareSheetForArchiving") private var _useShareSheet: Bool = false
 	@AppStorage("Feather.installationMethod") private var _installationMethod: Int = 0
 	@State private var _isWebviewPresenting = false
+	@State private var _isOpeningInstallLink = false
+	@State private var _showInstallLinkError = false
+	@State private var _isPreviewActive = false
 	@State private var _hasStarted = false
 	@StateObject private var _activity = InstallationActivity()
 	@State private var progressTask: Task<Void, Never>?
@@ -69,11 +72,13 @@ struct InstallPreviewView: View {
 		.sheet(isPresented: $_isWebviewPresenting) {
 			SafariRepresentableView(url: installer.pageEndpoint).ignoresSafeArea()
 		}
+		.alert(.localized("Install"), isPresented: $_showInstallLinkError) {
+			Button(.localized("OK"), role: .cancel) {}
+		} message: {
+			Text(.localized("iOS could not open the installation link. Tap Install to retry, or turn off Bypass Safari Web View in Installation settings."))
+		}
 		.onReceive(viewModel.$status) { newStatus in
 			if _installationMethod == 0 {
-				if case .ready = newStatus {
-					_isWebviewPresenting = true
-				}
 				if case .sendingPayload = newStatus {
 					_isWebviewPresenting = false
 				}
@@ -97,12 +102,16 @@ struct InstallPreviewView: View {
                 break
             }
 		}
-		.onAppear(perform: _install)
+		.onAppear {
+			_isPreviewActive = true
+			_install()
+		}
 		
 		.onDisappear {
 			// Safari and the system confirmation can cover this view while the
 			// installer still needs its local server. Covering is not cancellation.
 			if !_isWebviewPresenting {
+				_isPreviewActive = false
 				progressTask?.cancel()
 				progressTask = nil
 				_activity.stop()
@@ -123,9 +132,10 @@ struct InstallPreviewView: View {
 	private func _button() -> some View {
 		ZStack {
 			if canRetryHandoff, !isSharing, _installationMethod == 0 {
-				Button { _isWebviewPresenting = true } label: {
+				Button { openInstallHandoff() } label: {
 					NBButton("Install", systemImage: "arrow.down.app", style: .text)
 				}
+				.disabled(_isOpeningInstallLink)
 				.padding()
 			}
 			if viewModel.isCompleted {
@@ -171,17 +181,10 @@ struct InstallPreviewView: View {
 				if await !isSharing {
 					if await _installationMethod == 0 {
 						try await installer.start(package: packageUrl)
-						await MainActor.run { viewModel.status = .ready }
-						
-						if case .installing = await viewModel.status {
-							let task = await startInstallProgressPolling(
-								bundleID: app.identifier!,
-								viewModel: viewModel
-							)
-
-							await MainActor.run {
-								progressTask = task
-							}
+						await MainActor.run {
+							guard _isPreviewActive else { return }
+							viewModel.status = .ready
+							openInstallHandoff()
 						}
 					} else if await _installationMethod == 1 {
 						let handler = await InstallationProxy(viewModel: viewModel)
@@ -218,6 +221,23 @@ struct InstallPreviewView: View {
 					)
 				}
 			}
+		}
+	}
+
+	@MainActor
+	private func openInstallHandoff() {
+		guard _isPreviewActive, canRetryHandoff, !_isOpeningInstallLink else { return }
+		guard installer.bypassesWebView else {
+			_isWebviewPresenting = true
+			return
+		}
+		guard let url = installer.installationURL else { return }
+		_isOpeningInstallLink = true
+		Task { @MainActor in
+			defer { _isOpeningInstallLink = false }
+			guard _isPreviewActive else { return }
+			let opened = await UIApplication.shared.open(url)
+			if !opened, _isPreviewActive, canRetryHandoff { _showInstallLinkError = true }
 		}
 	}
 

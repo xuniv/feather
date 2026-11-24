@@ -6,9 +6,17 @@ enum InstallationServerMethod: Int, CaseIterable {
     case publicTLS = 2
     case hostedLocalCA = 3
 
+    static let defaultMethod: Self = .localCA
     var usesLocalCA: Bool { self == .localCA || self == .hostedLocalCA }
     var usesHostedManifest: Bool { self == .hostedHTTP || self == .hostedLocalCA }
     var usesHTTP: Bool { self == .hostedHTTP }
+    var supportsWebViewBypass: Bool { self == .localCA }
+
+    func bypassesWebView(defaults: UserDefaults) -> Bool {
+        supportsWebViewBypass &&
+            (defaults.object(forKey: InstallationTransport.webViewBypassKey) as? Bool ?? InstallationTransport.defaultWebViewBypass)
+    }
+
     var title: String {
         switch self {
         case .localCA: "Local CA (Offline)"
@@ -23,6 +31,8 @@ enum InstallationServerMethod: Int, CaseIterable {
 enum InstallationTransport {
     static let preflightHeader = "X-Feather-Preflight"
     static let defaultHostedServer = "https://api.palera.in/genPlist"
+    static let webViewBypassKey = "Feather.bypassInstallWebView"
+    static let defaultWebViewBypass = true
     static let preferredLocalHost = "feather.localhost"
     static let localHosts = [preferredLocalHost, "localhost", "127.0.0.1"]
 

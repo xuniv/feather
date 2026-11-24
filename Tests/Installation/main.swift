@@ -80,6 +80,23 @@ assert(InstallationServerMethod(rawValue: 2) == .publicTLS)
 assert(InstallationServerMethod(rawValue: 3)!.usesLocalCA)
 assert(InstallationServerMethod.hostedLocalCA.usesHostedManifest)
 assert(!InstallationServerMethod.hostedLocalCA.usesHTTP)
+
+let preferencesSuite = "InstallationHandoffTests.\(UUID())"
+let preferences = UserDefaults(suiteName: preferencesSuite)!
+defer { preferences.removePersistentDomain(forName: preferencesSuite) }
+assert(InstallationServerMethod.defaultMethod == .localCA)
+assert(InstallationTransport.preferredLocalHost == "feather.localhost")
+assert(InstallationServerMethod.localCA.bypassesWebView(defaults: preferences))
+preferences.set(false, forKey: InstallationTransport.webViewBypassKey)
+assert(!InstallationServerMethod.localCA.bypassesWebView(defaults: preferences))
+preferences.set(true, forKey: InstallationTransport.webViewBypassKey)
+for method in InstallationServerMethod.allCases {
+    assert(method.bypassesWebView(defaults: preferences) == (method == .localCA))
+}
+let offlineManifest = InstallationTransport.endpoint(host: InstallationTransport.preferredLocalHost,
+    port: 4567, path: "/test.plist", http: false)
+let directLink = InstallationTransport.installationURL(manifest: offlineManifest)
+assert(directLink.absoluteString == "itms-services://?action=download-manifest&url=https%3A%2F%2Ffeather.localhost%3A4567%2Ftest.plist")
 print("Installation handoff, nested URL/XML encoding, hosted response validation and legacy mode checks passed")
 
 // Body-length metadata is not evidence that the IPA is missing. A ranged GET

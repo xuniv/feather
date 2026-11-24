@@ -17,4 +17,7 @@ extension ServerInstaller {
     var plistEndpoint: URL { endpoint("/\(id).plist") }
     var payloadEndpoint: URL { endpoint("/\(id).ipa") }
     var pageEndpoint: URL { endpoint("/install") }
+    var installationURL: URL? {
+        selectedManifest.map { InstallationTransport.installationURL(manifest: $0) }
+    }
 }

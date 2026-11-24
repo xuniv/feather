@@ -1,6 +1,39 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "iOS could not open the installation link. Tap Install to retry, or turn off Bypass Safari Web View in Installation settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS에서 설치 링크를 열 수 없습니다. 설치 버튼으로 다시 시도하거나 설치 설정에서 Safari 웹뷰 건너뛰기를 끄세요."
+          }
+        }
+      }
+    },
+    "Open the iOS installation confirmation directly. Turn this off to use the Safari installation page." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 설치 확인 창을 바로 엽니다. Safari 설치 페이지를 사용하려면 이 옵션을 끄세요."
+          }
+        }
+      }
+    },
+    "Bypass Safari Web View" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Safari 웹뷰 건너뛰기"
+          }
+        }
+      }
+    },
     "Install the original IPA, including DRM-protected apps, without resigning or modifying it. A valid original signature and any required App Store license are needed. This does not decrypt apps or acquire licenses." : {
       "extractionState": "manual",
       "localizations": {

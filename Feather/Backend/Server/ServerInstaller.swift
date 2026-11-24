@@ -16,6 +16,7 @@ class ServerInstaller: Identifiable, ObservableObject {
     let id = UUID()
     let port = Int.random(in: 4000...8000)
     let method: InstallationServerMethod
+    let bypassesWebView: Bool
     let metadata: InstallationTransport.Metadata
     let hostedServer: String
     let ipFix: Bool
@@ -39,7 +40,9 @@ class ServerInstaller: Identifiable, ObservableObject {
         self.viewModel = viewModel
         self.metadata = metadata
         let defaults = UserDefaults.standard
-        method = InstallationServerMethod(rawValue: defaults.integer(forKey: "Feather.serverMethod")) ?? .localCA
+        let selectedMethod = InstallationServerMethod(rawValue: defaults.integer(forKey: "Feather.serverMethod")) ?? .defaultMethod
+        method = selectedMethod
+        bypassesWebView = selectedMethod.bypassesWebView(defaults: defaults)
         hostedServer = defaults.string(forKey: "Feather.hostedPlistServer") ?? InstallationTransport.defaultHostedServer
         ipFix = defaults.bool(forKey: "Feather.ipFix")
     }

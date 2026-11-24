@@ -49,10 +49,11 @@ extension ServerView {
 // MARK: - View
 struct ServerView: View {
 	@AppStorage("Feather.ipFix") private var _ipFix: Bool = false
-	@AppStorage("Feather.serverMethod") private var _serverMethod: Int = 0
+	@AppStorage("Feather.serverMethod") private var _serverMethod = InstallationServerMethod.defaultMethod.rawValue
+	@AppStorage(InstallationTransport.webViewBypassKey) private var _bypassWebView = InstallationTransport.defaultWebViewBypass
 	@AppStorage("Feather.localInstallHost") private var _localHost = InstallationTransport.preferredLocalHost
 	@AppStorage("Feather.hostedPlistServer") private var _hostedServer = InstallationTransport.defaultHostedServer
-	private var method: InstallationServerMethod { InstallationServerMethod(rawValue: _serverMethod) ?? .localCA }
+	private var method: InstallationServerMethod { InstallationServerMethod(rawValue: _serverMethod) ?? .defaultMethod }
 	@State private var _resetCA = false
 	
 	private let _serverPackUrl = "https://backloop.dev/pack.json"
@@ -73,6 +74,13 @@ struct ServerView: View {
 					Picker(.localized("Local HTTPS Address"), selection: $_localHost) {
 						ForEach(InstallationTransport.localHosts, id: \.self) { Text($0).tag($0) }
 					}
+				}
+				if method.supportsWebViewBypass {
+					Toggle(.localized("Bypass Safari Web View"), systemImage: "safari", isOn: $_bypassWebView)
+				}
+			} footer: {
+				if method.supportsWebViewBypass {
+					Text(.localized("Open the iOS installation confirmation directly. Turn this off to use the Safari installation page."))
 				}
 			}
 			
