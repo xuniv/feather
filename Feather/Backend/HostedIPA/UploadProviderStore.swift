@@ -19,6 +19,7 @@ final class UploadProviderStore: ObservableObject {
 
     static let shared = UploadProviderStore()
     private static let storageKey = "Feather.uploadProviderSources"
+    private static let bundleVersionKey = "Feather.uploadProviderBundleVersion"
 
     @Published private(set) var sources: [Source]
     @Published private(set) var isRefreshing = false
@@ -31,15 +32,24 @@ final class UploadProviderStore: ObservableObject {
         } else {
             bundledCatalog = nil
         }
+        let bundleVersion = Bundle.main.object(forInfoDictionaryKey: "FeatherForkVersion") as? String ??
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let refreshDefault = bundledCatalog != nil &&
+            bundleVersion != UserDefaults.standard.string(forKey: Self.bundleVersionKey)
         if let data = UserDefaults.standard.data(forKey: Self.storageKey),
            let saved = try? JSONDecoder().decode([Source].self, from: data) {
             sources = saved.filter { UploadProviderCatalog.isHTTPS($0.url) }.map { source in
+                if refreshDefault, source.url == UploadProviderCatalog.defaultURL { return Source(url: source.url) }
                 guard let catalog = source.catalog else { return source }
                 if (try? catalog.validate()) != nil { return source }
                 return Source(url: source.url)
             }
         } else {
             sources = [Source(url: UploadProviderCatalog.defaultURL)]
+        }
+        if refreshDefault {
+            persist()
+            UserDefaults.standard.set(bundleVersion, forKey: Self.bundleVersionKey)
         }
     }
 

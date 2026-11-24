@@ -28,12 +28,13 @@ struct HostedIPAMultipart {
 
     private static func envelope(boundary: String, kind: FileKind, provider: UploadProvider,
                                  choices: [String: String]) throws -> (Data, Data) {
+        guard let fileField = provider.upload.fileField else { throw HostedIPAError.invalidCatalog }
         let fields = try provider.fields(choices: choices)
         var prefix = Data()
         for (field, value) in fields.sorted(by: { $0.key < $1.key }) {
             prefix.append(contentsOf: "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(field)\"\r\n\r\n\(value)\r\n".utf8)
         }
-        prefix.append(contentsOf: "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(provider.upload.fileField)\"; filename=\"\(kind.filename(for: provider))\"\r\nContent-Type: \(kind.contentType)\r\n\r\n".utf8)
+        prefix.append(contentsOf: "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(fileField)\"; filename=\"\(kind.filename(for: provider))\"\r\nContent-Type: \(kind.contentType)\r\n\r\n".utf8)
         return (prefix, Data("\r\n--\(boundary)--\r\n".utf8))
     }
 

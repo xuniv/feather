@@ -46,6 +46,7 @@ func checkHostedIPA(catalogFile: URL) async throws {
     expectFailure { _ = try variant(ua: false, endpoint: "http://example.test/upload") }
     expectFailure { _ = try UploadProviderCatalog.sourceURL("file:///private/upload-providers.json") }
     expectFailure { _ = try UploadProviderCatalog.sourceURL("https://name:password@example.test/providers.json") }
+    try checkFile2Me(catalog: catalog, catalogData: catalogData)
 
     let manager = FileManager.default
     let root = manager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -128,4 +129,46 @@ func checkHostedIPA(catalogFile: URL) async throws {
         fatalError("Accepted a symlink outside the package")
     } catch HostedIPAError.unsafeSymlink {}
     print("Hosted IPA archive, manifest, provider catalog, UA and multipart checks passed")
+}
+
+private func checkFile2Me(catalog: UploadProviderCatalog, catalogData: Data) throws {
+    guard let provider = catalog.providers.first(where: \.usesFile2Me) else {
+        fatalError("Missing file2.me provider")
+    }
+    precondition(provider.fileLimitBytes == 500_000_000 && provider.id == "file2-me")
+    precondition(!catalog.providers.contains(where: { $0.id == "okfile" }))
+    let options = try provider.fields(choices: ["retention": "7d"])
+    precondition(options == ["expiry": "7d"])
+    expectFailure { _ = try provider.fields(choices: ["retention": "30d"]) }
+
+    let raw = try File2Me.rawURL(shareID: "test_A-b1")
+    precondition(raw.absoluteString == "https://file2.me/raw/test_A-b1" && provider.allowsDownload(raw))
+    expectFailure { _ = try File2Me.rawURL(shareID: "../share") }
+    expectFailure { _ = try File2Me.rawURL(shareID: "test\n") }
+    for invalid in ["https://file2.me:8443/raw/test", "https://file2.me/raw/test?redirect=1",
+                    "https://file2.me.evil.test/raw/test", "https://file2.me/api/test"] {
+        precondition(!provider.allowsDownload(URL(string: invalid)!))
+    }
+    let storage = "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/bucket/key?X-Amz-Signature=fixture"
+    let target = try File2Me.storageRedirect(from: raw, status: 307, location: storage)
+    precondition(target.absoluteString == storage && !provider.allowsDownload(target))
+    expectFailure { _ = try File2Me.storageRedirect(from: raw, status: 302, location: storage) }
+    for invalid in ["http://" + storage.dropFirst(8), "https://localhost/file?X-Amz-Signature=fixture",
+                    storage.replacingOccurrences(of: ".com/", with: ".com.evil.test/"),
+                    storage.replacingOccurrences(of: ".com/", with: ".com:8443/"),
+                    String(storage.split(separator: "?")[0])] {
+        expectFailure { _ = try File2Me.storageRedirect(from: raw, status: 307, location: invalid) }
+    }
+    let handoff = InstallationTransport.installationURL(manifest: raw)
+    let query = URLComponents(url: handoff, resolvingAgainstBaseURL: false)?.queryItems
+    precondition(query?.first(where: { $0.name == "url" })?.value == raw.absoluteString)
+
+    var old = try JSONSerialization.jsonObject(with: catalogData) as! [String: Any]
+    let file2Me = old.removeValue(forKey: "file2Me") as! [String: Any]
+    let legacy = try UploadProviderCatalog.decode(JSONSerialization.data(withJSONObject: old))
+    precondition(!legacy.providers.contains(where: \.usesFile2Me))
+    var providers = old["providers"] as! [[String: Any]]
+    providers.append(file2Me)
+    old["providers"] = providers
+    expectFailure { _ = try UploadProviderCatalog.decode(JSONSerialization.data(withJSONObject: old)) }
 }

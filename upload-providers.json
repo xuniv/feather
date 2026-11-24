@@ -614,37 +614,6 @@
       ]
     },
     {
-      "id": "okfile",
-      "name": "OkFile",
-      "fileLimitBytes": 5242880,
-      "upload": {
-        "url": "https://www.okfile.com/api/upload/quick",
-        "fileField": "file",
-        "fields": {
-          "burnAfterRead": "false"
-        },
-        "ipaFilename": "App.ipa",
-        "manifestFilename": "install.xml",
-        "response": {
-          "format": "jsonURL",
-          "path": [
-            "url"
-          ]
-        },
-        "ua": true
-      },
-      "download": {
-        "hosts": [
-          "ok26.org"
-        ],
-        "manifestMIMETypes": [
-          "text/xml"
-        ]
-      },
-      "options": [],
-      "retentionNote": "Anonymous quick uploads expire after 24 hours or 10 downloads per file."
-    },
-    {
       "id": "ayaya",
       "name": "Ayaya",
       "fileLimitBytes": 4294967296,
@@ -674,5 +643,65 @@
       "options": [],
       "retentionNote": "Files expire after 14 days."
     }
-  ]
+  ],
+  "file2Me": {
+    "id": "file2-me",
+    "name": "file2.me",
+    "fileLimitBytes": 500000000,
+    "upload": {
+      "url": "https://file2.me/api/upload/presign",
+      "method": "file2me",
+      "fields": {},
+      "ipaFilename": "App.ipa",
+      "manifestFilename": "install.xml",
+      "ua": true
+    },
+    "download": {
+      "hosts": [
+        "file2.me"
+      ],
+      "manifestMIMETypes": [
+        "text/xml",
+        "application/xml"
+      ]
+    },
+    "options": [
+      {
+        "id": "retention",
+        "label": "Retention",
+        "defaultChoice": "24h",
+        "choices": [
+          {
+            "id": "1h",
+            "label": "1 hour",
+            "fields": {
+              "expiry": "1h"
+            }
+          },
+          {
+            "id": "12h",
+            "label": "12 hours",
+            "fields": {
+              "expiry": "12h"
+            }
+          },
+          {
+            "id": "24h",
+            "label": "24 hours",
+            "fields": {
+              "expiry": "24h"
+            }
+          },
+          {
+            "id": "7d",
+            "label": "7 days",
+            "fields": {
+              "expiry": "7d"
+            }
+          }
+        ]
+      }
+    ],
+    "retentionNote": "file2.me scans files before making the link available."
+  }
 }

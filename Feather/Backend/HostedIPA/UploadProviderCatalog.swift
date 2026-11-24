@@ -7,7 +7,16 @@ struct UploadProviderCatalog: Codable, Sendable {
 
     let schemaVersion: Int
     let defaultProvider: String?
-    let providers: [UploadProvider]
+    private let multipartProviders: [UploadProvider]
+    private let file2Me: UploadProvider?
+
+    // Older clients read only the multipart list from the same catalog URL.
+    var providers: [UploadProvider] { multipartProviders + [file2Me].compactMap { $0 } }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, defaultProvider, file2Me
+        case multipartProviders = "providers"
+    }
 
     static func decode(_ data: Data) throws -> Self {
         guard data.count <= maximumBytes else { throw HostedIPAError.invalidCatalog }
@@ -17,8 +26,10 @@ struct UploadProviderCatalog: Codable, Sendable {
     }
 
     func validate() throws {
+        let providers = self.providers
         let identifiers = Set(providers.map(\.id))
         guard schemaVersion == 1, providers.count <= 50, identifiers.count == providers.count,
+              multipartProviders.allSatisfy({ !$0.usesFile2Me }), file2Me?.usesFile2Me ?? true,
               defaultProvider.map(identifiers.contains) ?? true else { throw HostedIPAError.invalidCatalog }
         for provider in providers { try provider.validate() }
     }
@@ -38,12 +49,15 @@ struct UploadProviderCatalog: Codable, Sendable {
 
 struct UploadProvider: Codable, Equatable, Identifiable, Sendable {
     struct Upload: Codable, Equatable, Sendable {
+        enum Method: String, Codable, Sendable { case file2Me = "file2me" }
+
         let url: URL
-        let fileField: String
+        let method: Method?
+        let fileField: String?
         let fields: [String: String]
         let ipaFilename: String
         let manifestFilename: String
-        let response: Response
+        let response: Response?
         let ua: UserAgent?
     }
 
@@ -109,6 +123,8 @@ struct UploadProvider: Codable, Equatable, Identifiable, Sendable {
     let options: [Option]
     let retentionNote: String?
 
+    var usesFile2Me: Bool { upload.method == .file2Me }
+
     func accepts(size: Int64) -> Bool { size > 0 && size <= fileLimitBytes }
 
     func userAgent(bundleID: String, version: String) -> String {
@@ -132,21 +148,22 @@ struct UploadProvider: Codable, Equatable, Identifiable, Sendable {
     }
 
     func allowsDownload(_ url: URL) -> Bool {
-        UploadProviderCatalog.isHTTPS(url) &&
+        if usesFile2Me { return File2Me.allowsRawURL(url) }
+        return UploadProviderCatalog.isHTTPS(url) &&
             download.hosts.contains { $0.caseInsensitiveCompare(url.host ?? "") == .orderedSame } &&
             (url.query == nil || download.allowQuery == true) &&
             !url.path.isEmpty && url.path != "/"
     }
 
     func downloadURL(from data: Data) throws -> URL {
-        guard data.count <= 8_192 else { throw HostedIPAError.invalidLink }
+        guard data.count <= 8_192, let response = upload.response else { throw HostedIPAError.invalidLink }
         let value: String?
-        switch upload.response.format {
+        switch response.format {
         case .plainTextURL:
             value = String(data: data, encoding: .utf8)
         case .jsonURL:
             var object: Any? = try? JSONSerialization.jsonObject(with: data)
-            for key in upload.response.path ?? [] {
+            for key in response.path ?? [] {
                 object = (object as? [String: Any])?[key]
             }
             value = object as? String
@@ -161,7 +178,7 @@ struct UploadProvider: Codable, Equatable, Identifiable, Sendable {
         guard Self.token(id), Self.label(name), fileLimitBytes > 0,
               requestLimitBytes.map({ $0 >= fileLimitBytes }) ?? true,
               upload.ua?.isValid ?? true,
-              UploadProviderCatalog.isHTTPS(upload.url), Self.token(upload.fileField),
+              UploadProviderCatalog.isHTTPS(upload.url),
               Self.token(upload.ipaFilename), upload.ipaFilename.lowercased().hasSuffix(".ipa"),
               Self.token(upload.manifestFilename),
               [".xml", ".plist"].contains(where: upload.manifestFilename.lowercased().hasSuffix),
@@ -172,12 +189,23 @@ struct UploadProvider: Codable, Equatable, Identifiable, Sendable {
               retentionNote.map(Self.label) ?? true,
               options.count <= 8, Set(options.map(\.id)).count == options.count else { throw HostedIPAError.invalidCatalog }
 
-        let path = upload.response.path ?? []
-        switch upload.response.format {
-        case .plainTextURL:
-            guard path.isEmpty else { throw HostedIPAError.invalidCatalog }
-        case .jsonURL:
-            guard (1...8).contains(path.count), path.allSatisfy(Self.token) else { throw HostedIPAError.invalidCatalog }
+        if usesFile2Me {
+            guard id == "file2-me", upload.url == File2Me.presign, download.hosts == ["file2.me"],
+                  upload.fileField == nil, upload.response == nil, download.allowQuery != true,
+                  fileLimitBytes <= File2Me.maximumFileSize, requestLimitBytes == nil else {
+                throw HostedIPAError.invalidCatalog
+            }
+        } else {
+            guard let field = upload.fileField, Self.token(field), let response = upload.response else {
+                throw HostedIPAError.invalidCatalog
+            }
+            let path = response.path ?? []
+            switch response.format {
+            case .plainTextURL:
+                guard path.isEmpty else { throw HostedIPAError.invalidCatalog }
+            case .jsonURL:
+                guard (1...8).contains(path.count), path.allSatisfy(Self.token) else { throw HostedIPAError.invalidCatalog }
+            }
         }
 
         try validateFields(upload.fields)
@@ -195,7 +223,12 @@ struct UploadProvider: Codable, Equatable, Identifiable, Sendable {
     }
 
     private func validateFields(_ fields: [String: String]) throws {
-        guard fields.count <= 16, fields[upload.fileField] == nil,
+        if usesFile2Me, !fields.isEmpty {
+            guard fields.count == 1, let expiry = fields["expiry"], File2Me.expiries.contains(expiry) else {
+                throw HostedIPAError.invalidCatalog
+            }
+        }
+        guard fields.count <= 16, !(upload.fileField.map { fields[$0] != nil } ?? false),
               fields.keys.allSatisfy(Self.token),
               fields.values.allSatisfy({ $0.utf8.count <= 1_024 && $0.rangeOfCharacter(from: .controlCharacters) == nil }) else {
             throw HostedIPAError.invalidCatalog
